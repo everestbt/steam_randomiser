@@ -86,11 +86,8 @@ async fn main() -> Result<(), reqwest::Error> {
 
     // Fetch games for steamid
     let base_owned_games_request: String = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?format=json&include_appinfo=true&include_played_free_games=true".to_owned();
-    let get_owned_games_request: String = base_owned_games_request 
-    + key_add 
-    + key
-    + steam_id_add 
-    + steam_id;
+    let get_owned_games_request: String =
+        base_owned_games_request + key_add + key + steam_id_add + steam_id;
 
     let owned_games: SteamOwnedGamesResponse = reqwest::Client::new()
         .get(get_owned_games_request)
@@ -108,15 +105,13 @@ async fn main() -> Result<(), reqwest::Error> {
 
     if filter_to_game.len() == 0 {
         println!("Failed to find that game");
-    }
-    else if filter_to_game.len() > 1 {
+    } else if filter_to_game.len() > 1 {
         println!("Result is ambiguous");
         for ele in filter_to_game.iter() {
             println!("{:#?}!", ele.name);
         }
         println!("TAKING THE FIRST ONE:");
     }
-
 
     let game = filter_to_game.get(0).unwrap();
 
