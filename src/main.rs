@@ -114,9 +114,9 @@ async fn main() -> Result<(), reqwest::Error> {
         for ele in filter_to_game.iter() {
             println!("{:#?}!", ele.name);
         }
+        println!("TAKING THE FIRST ONE:");
     }
 
-    println!("TAKING THE FIRST ONE:");
 
     let game = filter_to_game.get(0).unwrap();
 
