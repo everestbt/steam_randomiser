@@ -96,11 +96,13 @@ async fn main() -> Result<(), reqwest::Error> {
         .json()
         .await?;
 
+    // Search for the game title
+    let game_name_lowercase: String = game_name.to_lowercase();
     let filter_to_game: Vec<&Game> = owned_games
         .response
         .games
         .iter()
-        .filter(|a| a.name.contains(game_name))
+        .filter(|a| a.name.to_lowercase().contains(&game_name_lowercase))
         .collect();
 
     if filter_to_game.len() == 0 {
