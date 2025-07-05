@@ -185,10 +185,10 @@ async fn main() -> Result<(), reqwest::Error> {
             .collect();
         println!("And your selected achievement is:");
         let a = selected_achievement_desc.get(0).unwrap();
-        println!("{:#?}", a.display_name);
-        if a.description.is_some() {
-            println!("{:#?}", a.description.clone().unwrap());
-        }
+        
+        println!("{achievement} : {description}",
+             achievement=a.display_name,
+             description = a.description.clone().unwrap_or("no description".to_string()));
     }
     Ok(())
 }
