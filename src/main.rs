@@ -1,27 +1,9 @@
 mod game_fetch;
+mod achievement_fetch;
 
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::env;
-
-// Player Achievements Request
-#[derive(Debug, Serialize, Deserialize)]
-struct Achievement {
-    apiname: String,
-    achieved: i32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct PlayerAchievements {
-    achievements: Vec<Achievement>,
-    #[serde(rename = "gameName")]
-    game_name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct PlayerStatsResponse {
-    playerstats: PlayerAchievements,
-}
 
 // Game Schema request
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,10 +35,8 @@ async fn main() -> Result<(), reqwest::Error> {
     let args: Vec<String> = env::args().collect();
 
     let key: &str = &args[1];
-    let key_add: &str = "&key=";
 
     let steam_id: &str = &args[2];
-    let steam_id_add: &str = "&steamid=";
 
     let app_id_add: &str = "&appid=";
 
@@ -68,7 +48,7 @@ async fn main() -> Result<(), reqwest::Error> {
     let game_name: &str = mut_game_name.as_str();
     println!("Searching for {:#?}", game_name);
 
-    // Fetch games for steamid
+    // Fetch games
     let owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(key, steam_id).await;
 
     // Search for the game title
@@ -95,22 +75,7 @@ async fn main() -> Result<(), reqwest::Error> {
     println!("Found the game {:#?}!", game.name);
 
     // Get the achievements for a specific game
-    let base_get_player_achievements_request: String =
-        "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?".to_owned();
-    let get_player_achievements_request: String = base_get_player_achievements_request
-        + key_add
-        + key
-        + steam_id_add
-        + steam_id
-        + app_id_add
-        + app_id;
-
-    let player_achievements: PlayerStatsResponse = reqwest::Client::new()
-        .get(get_player_achievements_request)
-        .send()
-        .await?
-        .json()
-        .await?;
+    let player_achievements: Vec<achievement_fetch::Achievement> = achievement_fetch::get_player_achievements(key, steam_id, app_id).await;
 
     println!("Found the achievements!");
 
@@ -130,9 +95,7 @@ async fn main() -> Result<(), reqwest::Error> {
     println!("Got the achievement details!");
 
     // Randomly select achievement from game
-    let filter_to_unachieved: Vec<&Achievement> = player_achievements
-        .playerstats
-        .achievements
+    let filter_to_unachieved: Vec<&achievement_fetch::Achievement> = player_achievements
         .iter()
         .filter(|a| a.achieved == 0)
         .collect();
