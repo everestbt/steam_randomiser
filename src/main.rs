@@ -1,24 +1,8 @@
+mod game_fetch;
+
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::env;
-
-// Owned Games Request
-#[derive(Debug, Serialize, Deserialize)]
-struct Game {
-    appid: i32,
-    name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct OwnedGames {
-    game_count: i32,
-    games: Vec<Game>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct SteamOwnedGamesResponse {
-    response: OwnedGames,
-}
 
 // Player Achievements Request
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,22 +69,11 @@ async fn main() -> Result<(), reqwest::Error> {
     println!("Searching for {:#?}", game_name);
 
     // Fetch games for steamid
-    let base_owned_games_request: String = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?format=json&include_appinfo=true&include_played_free_games=true".to_owned();
-    let get_owned_games_request: String =
-        base_owned_games_request + key_add + key + steam_id_add + steam_id;
-
-    let owned_games: SteamOwnedGamesResponse = reqwest::Client::new()
-        .get(get_owned_games_request)
-        .send()
-        .await?
-        .json()
-        .await?;
+    let owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(key, steam_id).await;
 
     // Search for the game title
     let game_name_lowercase: String = game_name.to_lowercase();
-    let filter_to_game: Vec<&Game> = owned_games
-        .response
-        .games
+    let filter_to_game: Vec<&game_fetch::Game> = owned_games
         .iter()
         .filter(|a| a.name.to_lowercase().contains(&game_name_lowercase))
         .collect();
@@ -187,10 +160,15 @@ async fn main() -> Result<(), reqwest::Error> {
             .collect();
         println!("And your selected achievement is:");
         let a = selected_achievement_desc.get(0).unwrap();
-        
-        println!("{achievement} : {description}",
-             achievement=a.display_name,
-             description = a.description.clone().unwrap_or("no description".to_string()));
+
+        println!(
+            "{achievement} : {description}",
+            achievement = a.display_name,
+            description = a
+                .description
+                .clone()
+                .unwrap_or("no description".to_string())
+        );
     }
     Ok(())
 }
