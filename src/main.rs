@@ -2,33 +2,7 @@ mod game_fetch;
 mod achievement_fetch;
 
 use rand::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::env;
-
-// Game Schema request
-#[derive(Debug, Serialize, Deserialize)]
-struct GameAchievement {
-    name: String,
-    #[serde(rename = "displayName")]
-    display_name: String,
-    description: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct GameStats {
-    achievements: Vec<GameAchievement>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct AvailableGameStats {
-    #[serde(rename = "availableGameStats")]
-    available_game_stats: GameStats,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct GameSchemaResponse {
-    game: AvailableGameStats,
-}
 
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
@@ -37,8 +11,6 @@ async fn main() -> Result<(), reqwest::Error> {
     let key: &str = &args[1];
 
     let steam_id: &str = &args[2];
-
-    let app_id_add: &str = "&appid=";
 
     let mut mut_game_name = String::new() + &args[3];
     for i in 4..args.len() {
@@ -75,27 +47,17 @@ async fn main() -> Result<(), reqwest::Error> {
     println!("Found the game {:#?}!", game.name);
 
     // Get the achievements for a specific game
-    let player_achievements: Vec<achievement_fetch::Achievement> = achievement_fetch::get_player_achievements(key, steam_id, app_id).await;
+    let player_achievements: Vec<achievement_fetch::PlayerAchievement> = achievement_fetch::get_player_achievements(key, steam_id, app_id).await;
 
     println!("Found the achievements!");
 
     // Get details of the achievements
-    let base_get_schema_for_game_request: String =
-        "https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=".to_owned();
-    let get_schema_for_game_request: String =
-        base_get_schema_for_game_request + key + app_id_add + app_id;
-
-    let achievements: GameSchemaResponse = reqwest::Client::new()
-        .get(get_schema_for_game_request)
-        .send()
-        .await?
-        .json()
-        .await?;
+    let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(key, app_id).await;
 
     println!("Got the achievement details!");
 
     // Randomly select achievement from game
-    let filter_to_unachieved: Vec<&achievement_fetch::Achievement> = player_achievements
+    let filter_to_unachieved: Vec<&achievement_fetch::PlayerAchievement> = player_achievements
         .iter()
         .filter(|a| a.achieved == 0)
         .collect();
@@ -114,10 +76,7 @@ async fn main() -> Result<(), reqwest::Error> {
     if random_achievement.is_none() {
         println!("Nothing left to achieve");
     } else {
-        let selected_achievement_desc: Vec<&GameAchievement> = achievements
-            .game
-            .available_game_stats
-            .achievements
+        let selected_achievement_desc: Vec<&achievement_fetch::GameAchievement> = achievements
             .iter()
             .filter(|a| a.name == random_achievement.unwrap().apiname)
             .collect();
