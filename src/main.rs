@@ -1,5 +1,5 @@
-mod game_fetch;
-mod achievement_fetch;
+use steam_randomiser::achievement_fetch;
+use steam_randomiser::game_fetch;
 
 use rand::prelude::*;
 use std::env;
