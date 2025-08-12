@@ -1,7 +1,7 @@
 mod db;
 
-use steam_randomiser::achievement_fetch;
-use steam_randomiser::game_fetch;
+use steam_randomiser::api::achievement_fetch;
+use steam_randomiser::api::game_fetch;
 use db::{key_store, steam_id_store};
 
 use rand::prelude::*;

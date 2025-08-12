@@ -1,4 +1,4 @@
-use steam_randomiser::game_fetch;
+use steam_randomiser::api::game_fetch;
 
 use eframe::egui;
 use std::env;
