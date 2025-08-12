@@ -27,7 +27,7 @@ struct Args {
 
     /// Return a list of the current goals
     #[arg(short, long)]
-    current_goals: bool,
+    goals: bool,
 
     /// Game name used for certain commands
     #[arg(short, long)]
@@ -139,7 +139,7 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     }
 
-    if args.current_goals {
+    if args.goals {
         let mut achievements: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
         achievements.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
         let mut app_player_achievement_map: HashMap<i32, achievement_fetch::PlayerAchievements> = HashMap::new();
