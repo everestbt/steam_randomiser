@@ -1,9 +1,11 @@
 mod db;
 
-use steam_randomiser::api::achievement_fetch;
+use steam_randomiser::api::achievement_fetch::{self, GameAchievement};
+use steam_randomiser::api::achievement_fetch::PlayerAchievements;
 use steam_randomiser::api::game_fetch;
-use db::{key_store, steam_id_store};
+use db::{key_store, steam_id_store, achievement_store};
 
+use std::collections::{HashMap};
 use rand::prelude::*;
 use clap::Parser;
 
@@ -23,9 +25,13 @@ struct Args {
     #[arg(short, long)]
     random_achievement: bool,
 
+    /// Return a list of the current goals
+    #[arg(short, long)]
+    current_goals: bool,
+
     /// Game name used for certain commands
     #[arg(short, long)]
-    game_name: String,
+    game_name: Option<String>,
 }
 
 #[tokio::main]
@@ -52,10 +58,11 @@ async fn main() -> Result<(), reqwest::Error> {
         steam_id = steam_id_store::get_id().expect("Failed to load a key, use --id first");
     }
 
-    let game_name: String = args.game_name;
-    println!("Searching for {:#?}", game_name);
+    
 
     if args.random_achievement {
+        let game_name: String = args.game_name.unwrap();
+        println!("Searching for {:#?}", game_name);
         // Fetch games
         let owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
 
@@ -78,17 +85,15 @@ async fn main() -> Result<(), reqwest::Error> {
 
         let game = filter_to_game.get(0).unwrap();
 
-        let app_id: &str = &game.appid.to_string();
-
         println!("Found the game {:#?}!", game.name);
 
         // Get the achievements for a specific game
-        let player_achievements: Vec<achievement_fetch::PlayerAchievement> = achievement_fetch::get_player_achievements(&key, &steam_id, app_id).await;
+        let player_achievements: Vec<achievement_fetch::PlayerAchievement> = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await.achievements;
 
         println!("Found the achievements!");
 
         // Get details of the achievements
-        let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(&key, app_id).await;
+        let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(&key, &game.appid).await;
 
         println!("Got the achievement details!");
 
@@ -111,7 +116,8 @@ async fn main() -> Result<(), reqwest::Error> {
         let random_achievement = filter_to_unachieved.choose(&mut rng);
         if random_achievement.is_none() {
             println!("Nothing left to achieve");
-        } else {
+        } 
+        else {
             let selected_achievement_desc: Vec<&achievement_fetch::GameAchievement> = achievements
                 .iter()
                 .filter(|a| a.name == random_achievement.unwrap().apiname)
@@ -127,6 +133,51 @@ async fn main() -> Result<(), reqwest::Error> {
                     .clone()
                     .unwrap_or("no description".to_string())
             );
+            // Save the achievement
+            achievement_store::save_achievement(&a.name, &game.appid).expect("Failed to save achievement");
+            println!("Saved the achievement!");
+        }
+    }
+
+    if args.current_goals {
+        let mut achievements: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
+        achievements.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
+        let mut app_player_achievement_map: HashMap<i32, achievement_fetch::PlayerAchievements> = HashMap::new();
+        let mut app_game_achievement_map: HashMap<i32, Vec<achievement_fetch::GameAchievement>> = HashMap::new();
+        for a in achievements {
+            // Check if the app is already loaded (PlayerAchievements)
+            let player_achievements = app_player_achievement_map.get(&a.app_id);
+            let loaded_player: &PlayerAchievements;
+            let player: PlayerAchievements;
+            if player_achievements.is_none() {
+                player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await;
+                app_player_achievement_map.insert(a.app_id, player);
+                loaded_player = app_player_achievement_map.get(&a.app_id).unwrap();
+            }
+            else {
+                loaded_player = player_achievements.unwrap();
+            }
+            // Check if the app is already loaded (GameAchievements)
+            let game_achieveements = app_game_achievement_map.get(&a.app_id);
+            let loaded_game_achievement: &Vec<GameAchievement>;
+            let game_achieve: Vec<GameAchievement>;
+            if game_achieveements.is_none() {
+                game_achieve = achievement_fetch::get_game_achievements(&key, &a.app_id).await;
+                app_game_achievement_map.insert(a.app_id, game_achieve);
+                loaded_game_achievement = app_game_achievement_map.get(&a.app_id).unwrap();
+            }
+            else {
+                loaded_game_achievement = game_achieveements.unwrap();
+            }
+
+            // Find the name of the achievement
+            let found_achievement = loaded_game_achievement.iter().find(|ga| a.achievement_name == ga.name).unwrap();
+            if found_achievement.description.is_none() {
+                println!("{game} : {name} [{id}]", name = found_achievement.display_name, game = loaded_player.game_name, id = a.id);
+            }
+            else{
+                println!("{game} : {name} - {description} [{id}]", name = found_achievement.display_name, game = loaded_player.game_name, description = found_achievement.description.clone().unwrap(), id = a.id);
+            }
         }
     }
     Ok(())

@@ -8,10 +8,10 @@ pub struct PlayerAchievement {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct PlayerAchievements {
-    achievements: Vec<PlayerAchievement>,
+pub struct PlayerAchievements {
+    pub achievements: Vec<PlayerAchievement>,
     #[serde(rename = "gameName")]
-    game_name: String,
+    pub game_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -44,10 +44,10 @@ struct GameSchemaResponse {
     game: AvailableGameStats,
 }
 
-pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &str) -> Vec<PlayerAchievement> {
+pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &i32) -> PlayerAchievements {
     let get_player_achievements_request: String = "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?".to_owned()
         + "&key=" + key + "&steamid=" + steam_id
-        + "&appid=" + app_id;
+        + "&appid=" + &app_id.to_string();
 
     let req: Result<reqwest::Response, reqwest::Error> = reqwest::Client::new()
         .get(get_player_achievements_request)
@@ -66,12 +66,12 @@ pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &str)
         false => (),
     }
 
-    response.unwrap().playerstats.achievements
+    response.unwrap().playerstats
 }
 
-pub async fn get_game_achievements(key : &str, app_id : &str) -> Vec<GameAchievement> {
+pub async fn get_game_achievements(key : &str, app_id : &i32) -> Vec<GameAchievement> {
     let get_schema_for_game_request: String =
-        "https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=".to_owned() + key + "&appid=" + app_id;
+        "https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=".to_owned() + key + "&appid=" + &app_id.to_string();
 
     let req: Result<reqwest::Response, reqwest::Error> = reqwest::Client::new()
         .get(get_schema_for_game_request)
