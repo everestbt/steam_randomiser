@@ -43,6 +43,19 @@ pub fn save_achievement(achievement_name: &String, app_id: &i32) -> Result<()> {
     Ok(())
 }
 
+pub fn delete_achievement(id: &i32) -> Result<()> {
+    // Connect to SQLite database (creates the file if it doesn't exist)
+    let conn: Connection = db_manager::get_connection();
+    
+    // Add in the achievement
+    conn.execute(
+        "DELETE FROM steam_achievements WHERE id = ?1",
+        params![id],
+    )?;
+
+    Ok(())
+}
+
 fn create_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS steam_achievements (

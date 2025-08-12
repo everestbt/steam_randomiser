@@ -172,6 +172,14 @@ async fn main() -> Result<(), reqwest::Error> {
 
             // Find the name of the achievement
             let found_achievement = loaded_game_achievement.iter().find(|ga| a.achievement_name == ga.name).unwrap();
+
+            // Remove any that are already completed
+            if loaded_player.achievements.iter().find(|x| x.apiname==a.achievement_name).unwrap().achieved == 1 {
+                achievement_store::delete_achievement(&a.id).expect("Failed to delete achievement");
+                println!("Well done! You completed {game} : {name}", name = found_achievement.display_name, game = loaded_player.game_name);
+                continue;
+            } 
+            
             if found_achievement.description.is_none() {
                 println!("{game} : {name} [{id}]", name = found_achievement.display_name, game = loaded_player.game_name, id = a.id);
             }
