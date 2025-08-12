@@ -1,5 +1,8 @@
+mod db;
+
 use steam_randomiser::achievement_fetch;
 use steam_randomiser::game_fetch;
+use db::{key_store, steam_id_store};
 
 use rand::prelude::*;
 use clap::Parser;
@@ -10,11 +13,11 @@ use clap::Parser;
 struct Args {
     /// Your Steam API key
     #[arg(short, long)]
-    key: String,
+    key: Option<String>,
 
     /// Your Steam ID
     #[arg(short, long)]
-    id: String,
+    id: Option<String>,
 
     /// Return a random achievement
     #[arg(short, long)]
@@ -29,9 +32,25 @@ struct Args {
 async fn main() -> Result<(), reqwest::Error> {
     let args = Args::parse();
 
-    let key: String = args.key;
+    let key: String;
+    if args.key.is_some() {
+        key = args.key.unwrap();
+        key_store::save_key(&key).expect("Failed to save the key");
+        println!("Saved your key, no need to use --key each time now. You can replace it by using --key again.")
+    }
+    else {
+        key = key_store::get_key().expect("Failed to load a key, use --key first");
+    }
 
-    let steam_id: String = args.id;
+    let steam_id: String;
+    if args.id.is_some() {
+        steam_id = args.id.unwrap();
+        steam_id_store::save_id(&steam_id).expect("Failed to save the key");
+        println!("Saved your steam id, no need to use --id each time now. You can replace it by using --id again.")
+    }
+    else {
+        steam_id = steam_id_store::get_id().expect("Failed to load a key, use --id first");
+    }
 
     let game_name: String = args.game_name;
     println!("Searching for {:#?}", game_name);
