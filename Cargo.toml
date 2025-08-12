@@ -12,6 +12,7 @@ reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 rand = "0.9.1"
 eframe = "0.31.1"
+clap = { version = "4.5.44", features = ["derive"] }
 
 [[bin]]
 path = "src/main.rs"
