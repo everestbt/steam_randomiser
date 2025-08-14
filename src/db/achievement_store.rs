@@ -9,12 +9,31 @@ pub struct Achievement {
 }
 
 pub fn get_achievements() -> Result<Vec<Achievement>> {
-    // Connect to SQLite database (creates the file if it doesn't exist)
     let conn: Connection = db_manager::get_connection();
     create_table(&conn)?;
 
     let mut stmt = conn.prepare("SELECT id, achievement_name, app_id FROM steam_achievements")?;
     let achieve_iter = stmt.query_map([], |row| {
+        Ok(Achievement {
+            id: row.get(0)?,
+            achievement_name: row.get(1)?,
+            app_id: row.get(2)?,
+        })
+    })?;
+
+    let mut achievement_vec : Vec<Achievement> = Vec::new();
+    for d in achieve_iter {
+        achievement_vec.push(d.unwrap());
+    }
+    Ok(achievement_vec)
+}
+
+pub fn get_achievements_for_app(app_id: &i32) -> Result<Vec<Achievement>> {
+    let conn: Connection = db_manager::get_connection();
+    create_table(&conn)?;
+
+    let mut stmt = conn.prepare("SELECT id, achievement_name, app_id FROM steam_achievements WHERE app_id = ?1")?;
+    let achieve_iter = stmt.query_map([app_id], |row| {
         Ok(Achievement {
             id: row.get(0)?,
             achievement_name: row.get(1)?,

@@ -45,16 +45,6 @@ pub fn save_id(id: &String) -> Result<()> {
     Ok(())
 }
 
-pub fn purge() -> Result<()> {
-    let conn: Connection = db_manager::get_connection();
-    conn.execute(
-        "DROP TABLE IF EXISTS steam_id_store",
-        [], // No parameters needed
-    )?;
-
-    Ok(())
-}
-
 fn create_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS steam_id_store (

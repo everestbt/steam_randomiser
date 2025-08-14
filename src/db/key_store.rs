@@ -45,16 +45,6 @@ pub fn save_key(key: &String) -> Result<()> {
     Ok(())
 }
 
-pub fn purge() -> Result<()> {
-    let conn: Connection = db_manager::get_connection();
-    conn.execute(
-        "DROP TABLE IF EXISTS steam_key",
-        [], // No parameters needed
-    )?;
-
-    Ok(())
-}
-
 fn create_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS steam_key (

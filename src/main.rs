@@ -97,30 +97,31 @@ async fn main() -> Result<(), reqwest::Error> {
 
         println!("Got the achievement details!");
 
+        // Load currently listed achievements
+        let current_goals_for_app: Vec<achievement_store::Achievement> = achievement_store::get_achievements_for_app(&game.appid).expect("Failed to load current goals");
+
         // Randomly select achievement from game
         let filter_to_unachieved: Vec<&achievement_fetch::PlayerAchievement> = player_achievements
             .iter()
             .filter(|a| a.achieved == 0)
+            .filter(|a| !current_goals_for_app.iter().any(|x| x.achievement_name == a.apiname))
             .collect();
 
         println!(
             "You have {:#?} achievements left in this game",
-            filter_to_unachieved.len()
+            filter_to_unachieved.len() + current_goals_for_app.len()
         );
 
         // Check there is something still in it
         if filter_to_unachieved.len() == 0 {
-            println!("Nothing left to achieve");
+            println!("Nothing left to add to goals!");
         }
-        let mut rng = rand::rng();
-        let random_achievement = filter_to_unachieved.choose(&mut rng);
-        if random_achievement.is_none() {
-            println!("Nothing left to achieve");
-        } 
         else {
+            let mut rng = rand::rng();
+            let random_achievement = filter_to_unachieved.choose(&mut rng).unwrap();
             let selected_achievement_desc: Vec<&achievement_fetch::GameAchievement> = achievements
                 .iter()
-                .filter(|a| a.name == random_achievement.unwrap().apiname)
+                .filter(|a| a.name == random_achievement.apiname)
                 .collect();
             println!("And your selected achievement is:");
             let a = selected_achievement_desc.get(0).unwrap();
