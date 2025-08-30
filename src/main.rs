@@ -3,7 +3,7 @@ mod db;
 use steam_randomiser::api::achievement_fetch::{self, GameAchievement};
 use steam_randomiser::api::achievement_fetch::PlayerAchievements;
 use steam_randomiser::api::game_fetch;
-use db::{key_store, steam_id_store, achievement_store};
+use db::{key_store, steam_id_store, achievement_store, request_store};
 
 use std::collections::{HashMap};
 use rand::prelude::*;
@@ -32,6 +32,10 @@ struct Args {
     /// Game name used for certain commands
     #[arg(short, long)]
     game_name: Option<String>,
+
+    /// Show debug level information
+    #[arg(short, long)]
+    debug: bool,
 }
 
 #[tokio::main]
@@ -64,6 +68,9 @@ async fn main() -> Result<(), reqwest::Error> {
         let game_name: String = args.game_name.unwrap();
         println!("Searching for {:#?}", game_name);
         // Fetch games
+        if !request_store::increment().unwrap() {
+            panic!("Hit request limit, wait until tomorrow");
+        }
         let owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
 
         // Search for the game title
@@ -88,11 +95,17 @@ async fn main() -> Result<(), reqwest::Error> {
         println!("Found the game {:#?}!", game.name);
 
         // Get the achievements for a specific game
+        if !request_store::increment().unwrap() {
+            panic!("Hit request limit, wait until tomorrow");
+        }
         let player_achievements: Vec<achievement_fetch::PlayerAchievement> = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await.achievements;
 
         println!("Found the achievements!");
 
         // Get details of the achievements
+        if !request_store::increment().unwrap() {
+            panic!("Hit request limit, wait until tomorrow");
+        }
         let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(&key, &game.appid).await;
 
         println!("Got the achievement details!");
@@ -149,9 +162,11 @@ async fn main() -> Result<(), reqwest::Error> {
             // Check if the app is already loaded (PlayerAchievements)
             let player_achievements = app_player_achievement_map.get(&a.app_id);
             let loaded_player: &PlayerAchievements;
-            let player: PlayerAchievements;
             if player_achievements.is_none() {
-                player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await;
+                if !request_store::increment().unwrap() {
+                    panic!("Hit request limit, wait until tomorrow");
+                }
+                let player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await;
                 app_player_achievement_map.insert(a.app_id, player);
                 loaded_player = app_player_achievement_map.get(&a.app_id).unwrap();
             }
@@ -161,9 +176,11 @@ async fn main() -> Result<(), reqwest::Error> {
             // Check if the app is already loaded (GameAchievements)
             let game_achieveements = app_game_achievement_map.get(&a.app_id);
             let loaded_game_achievement: &Vec<GameAchievement>;
-            let game_achieve: Vec<GameAchievement>;
             if game_achieveements.is_none() {
-                game_achieve = achievement_fetch::get_game_achievements(&key, &a.app_id).await;
+                if !request_store::increment().unwrap() {
+                    panic!("Hit request limit, wait until tomorrow");
+                }
+                let game_achieve = achievement_fetch::get_game_achievements(&key, &a.app_id).await;
                 app_game_achievement_map.insert(a.app_id, game_achieve);
                 loaded_game_achievement = app_game_achievement_map.get(&a.app_id).unwrap();
             }
@@ -188,6 +205,11 @@ async fn main() -> Result<(), reqwest::Error> {
                 println!("{game} : {name} - {description} [{id}]", name = found_achievement.display_name, game = loaded_player.game_name, description = found_achievement.description.clone().unwrap(), id = a.id);
             }
         }
+    }
+
+    if args.debug {
+        let request_count = request_store::get_count().expect("Failed to load request count");
+        println!("Request count {count}", count = request_count.to_string());
     }
     Ok(())
 }
