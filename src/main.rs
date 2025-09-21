@@ -65,7 +65,7 @@ async fn main() -> Result<(), reqwest::Error> {
     
 
     if args.random_achievement {
-        let game_name: String = args.game_name.unwrap();
+        let game_name: String = args.game_name.expect("Must pass in a game-name");
         println!("Searching for {:#?}", game_name);
         // Fetch games
         if !request_store::increment().unwrap() {
@@ -152,8 +152,7 @@ async fn main() -> Result<(), reqwest::Error> {
             println!("Saved the achievement!");
         }
     }
-
-    if args.goals {
+    else if args.goals {
         let mut achievements: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
         achievements.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
         let mut app_player_achievement_map: HashMap<i32, achievement_fetch::PlayerAchievements> = HashMap::new();
@@ -172,6 +171,10 @@ async fn main() -> Result<(), reqwest::Error> {
             }
             else {
                 loaded_player = player_achievements.unwrap();
+            }
+            // If a game-name is not contained, then filter it out
+            if !args.game_name.clone().is_some_and(|x| loaded_player.game_name.to_lowercase().contains(&x.to_lowercase())) {
+                continue;
             }
             // Check if the app is already loaded (GameAchievements)
             let game_achieveements = app_game_achievement_map.get(&a.app_id);
