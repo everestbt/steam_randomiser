@@ -173,7 +173,7 @@ async fn main() -> Result<(), reqwest::Error> {
                 loaded_player = player_achievements.unwrap();
             }
             // If a game-name is not contained, then filter it out
-            if !args.game_name.clone().is_some_and(|x| loaded_player.game_name.to_lowercase().contains(&x.to_lowercase())) {
+            if args.game_name.clone().is_some_and(|x| !loaded_player.game_name.to_lowercase().contains(&x.to_lowercase())) {
                 continue;
             }
             // Check if the app is already loaded (GameAchievements)
