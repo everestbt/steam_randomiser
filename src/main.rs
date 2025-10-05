@@ -3,7 +3,7 @@ mod db;
 use steam_randomiser::api::achievement_fetch::{self, GameAchievement};
 use steam_randomiser::api::achievement_fetch::PlayerAchievements;
 use steam_randomiser::api::game_fetch;
-use db::{key_store, steam_id_store, achievement_store, request_store};
+use db::{key_store, steam_id_store, achievement_store, request_store, excluded_achievement_store};
 
 use std::collections::{HashMap};
 use rand::prelude::*;
@@ -28,6 +28,10 @@ struct Args {
     /// Return a list of the current goals
     #[arg(short, long)]
     goals: bool,
+
+    /// Exclude an achievement by its id in the goals list
+    #[arg(short, long)]
+    exclude_achievement: Option<i32>,
 
     /// Game name used for certain commands
     #[arg(short, long)]
@@ -113,11 +117,15 @@ async fn main() -> Result<(), reqwest::Error> {
         // Load currently listed achievements
         let current_goals_for_app: Vec<achievement_store::Achievement> = achievement_store::get_achievements_for_app(&game.appid).expect("Failed to load current goals");
 
+        // Load excluded achievement
+        let excluded_achievement_for_app: Vec<excluded_achievement_store::ExcludedAchievement> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements");
+
         // Randomly select achievement from game
         let filter_to_unachieved: Vec<&achievement_fetch::PlayerAchievement> = player_achievements
             .iter()
-            .filter(|a| a.achieved == 0)
-            .filter(|a| !current_goals_for_app.iter().any(|x| x.achievement_name == a.apiname))
+            .filter(|a| a.achieved == 0) // Filter out achieved
+            .filter(|a| !current_goals_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out already in goals
+            .filter(|a| !excluded_achievement_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out any excluded achievements
             .collect();
 
         println!(
@@ -208,6 +216,13 @@ async fn main() -> Result<(), reqwest::Error> {
                 println!("{game} : {name} - {description} [{id}]", name = found_achievement.display_name, game = loaded_player.game_name, description = found_achievement.description.clone().unwrap(), id = a.id);
             }
         }
+    }
+    else if args.exclude_achievement.is_some() {
+        let achievement = achievement_store::get_achievement(&args.exclude_achievement.unwrap()).expect("Achievement no found");
+        // First delete the achievement, if this is all that succeeds then it is at least off the list
+        achievement_store::delete_achievement(&args.exclude_achievement.unwrap()).expect("Failed to delete achievement");
+        // Add it to the list of excluded achievements
+        excluded_achievement_store::save_excluded_achievement(&achievement.achievement_name, &achievement.app_id).expect("Failed to save the exclusion");
     }
 
     if args.debug {

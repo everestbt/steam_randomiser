@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result}; // For database operations and result handling
+use rusqlite::{params, Connection, Result};
 
 use steam_randomiser::db_lib::db_manager;
 
@@ -6,6 +6,22 @@ pub struct Achievement {
     pub id: i32,
     pub achievement_name: String,
     pub app_id: i32,
+}
+
+pub fn get_achievement(id: &i32) -> Result<Achievement> {
+    let conn: Connection = db_manager::get_connection();
+    create_table(&conn)?;
+
+    let mut stmt = conn.prepare("SELECT id, achievement_name, app_id FROM steam_achievements WHERE id = ?1")?;
+    let mut achieve_iter = stmt.query_map([id], |row| {
+        Ok(Achievement {
+            id: row.get(0)?,
+            achievement_name: row.get(1)?,
+            app_id: row.get(2)?,
+        })
+    })?;
+    let val = achieve_iter.next();
+    Ok(val.expect("Id not found")?)
 }
 
 pub fn get_achievements() -> Result<Vec<Achievement>> {
