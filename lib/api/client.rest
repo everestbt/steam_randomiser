@@ -1,6 +1,6 @@
 @steamKey=<STEAM KEY>
 @steamId=<STEAM ID>
-@appId=2767030
+@appId=671440
 
 ### Owned Games call
 GET https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?format=json&include_appinfo=true&include_played_free_games=true&key={{steamKey}}&steamid={{steamId}}

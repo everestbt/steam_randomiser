@@ -1,8 +1,7 @@
 use rusqlite::{params, Connection, Result};
 use chrono::{Local};
 
-
-use steam_randomiser::db_lib::db_manager;
+use db_lib::db_manager;
 
 struct RequestCount {
     date: String,

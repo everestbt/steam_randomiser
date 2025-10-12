@@ -1,0 +1,21 @@
+[package]
+name = "cli"
+version = "0.0.0"
+edition = "2021"
+description = "The CLI for steam random"
+
+[dependencies]
+api.workspace=true
+db.workspace=true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+rand.workspace = true
+clap.workspace = true
+chrono.workspace = true
+
+
+[[bin]]
+path = "src/main.rs"
+name = "steam-rand"

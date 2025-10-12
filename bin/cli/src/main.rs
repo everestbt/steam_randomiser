@@ -1,9 +1,5 @@
-mod db;
-
-use steam_randomiser::api::achievement_fetch::{self, GameAchievement};
-use steam_randomiser::api::achievement_fetch::PlayerAchievements;
-use steam_randomiser::api::game_fetch;
-use db::{key_store, steam_id_store, achievement_store, request_store, excluded_achievement_store};
+use api::{achievement_fetch, game_fetch, request_store};
+use db::{key_store, steam_id_store, achievement_store, excluded_achievement_store};
 
 use std::collections::{HashMap};
 use rand::prelude::*;
@@ -178,7 +174,7 @@ async fn main() -> Result<(), reqwest::Error> {
         for a in achievements {
             // Check if the app is already loaded (PlayerAchievements)
             let player_achievements = app_player_achievement_map.get(&a.app_id);
-            let loaded_player: &PlayerAchievements;
+            let loaded_player: &achievement_fetch::PlayerAchievements;
             if player_achievements.is_none() {
                 if !request_store::increment().unwrap() {
                     panic!("Hit request limit, wait until tomorrow");
@@ -196,7 +192,7 @@ async fn main() -> Result<(), reqwest::Error> {
             }
             // Check if the app is already loaded (GameAchievements)
             let game_achieveements = app_game_achievement_map.get(&a.app_id);
-            let loaded_game_achievement: &Vec<GameAchievement>;
+            let loaded_game_achievement: &Vec<achievement_fetch::GameAchievement>;
             if game_achieveements.is_none() {
                 if !request_store::increment().unwrap() {
                     panic!("Hit request limit, wait until tomorrow");

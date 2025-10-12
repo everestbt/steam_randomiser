@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, Result};
 
-use steam_randomiser::db_lib::db_manager;
+use db_lib::db_manager;
 
 pub struct Achievement {
     pub id: i32,

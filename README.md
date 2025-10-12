@@ -12,11 +12,11 @@ Simplest approach is to build/run it using `cargo`.
 To generate an achievement use the following command:
 
 ```rust
-cargo build
-cargo run <KEY> <STEAM-ID> A game name
+cargo install --path ./bin/cli
+steam-rand --key <KEY> --steam-id <STEAM-ID>
 ```
 
-Replacing `<KEY> <STEAM-ID>` with the relevant items.
+Replacing `<KEY> <STEAM-ID>` with your own credentials.
 
 It will search for all games which match the title. 
 If you give a title that you have multiple games that contain it, i.e. a series and giving the only the root name like Anno, then it will tell you it found multiple but take the first one found.
