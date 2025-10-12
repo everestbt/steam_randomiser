@@ -15,8 +15,16 @@ pub struct PlayerAchievements {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct PlayerAchievementsInternal {
+    achievements: Option<Vec<PlayerAchievement>>,
+    #[serde(rename = "gameName")]
+    game_name: Option<String>,
+    success: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct PlayerStatsResponse {
-    playerstats: PlayerAchievements,
+    playerstats: PlayerAchievementsInternal,
 }
 
 // Game Schema request
@@ -44,7 +52,7 @@ struct GameSchemaResponse {
     game: AvailableGameStats,
 }
 
-pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &i32) -> PlayerAchievements {
+pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &i32) -> Option<PlayerAchievements> {
     let get_player_achievements_request: String = "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?".to_owned()
         + "&key=" + key + "&steamid=" + steam_id
         + "&appid=" + &app_id.to_string();
@@ -66,7 +74,17 @@ pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &i32)
         false => (),
     }
 
-    response.unwrap().playerstats
+    let val = response.unwrap();
+    // Success code can be true but no achievements present, typically for more modern games (Dota 2 is an example app_id 570)
+    if val.playerstats.success && val.playerstats.achievements.is_some() {
+        Option::Some(PlayerAchievements {
+            achievements: val.playerstats.achievements.expect("Achievements should have been present..."),
+            game_name: val.playerstats.game_name.expect("Game name should have been present..."),
+        })
+    }
+    else {
+        Option::None
+    }
 }
 
 pub async fn get_game_achievements(key : &str, app_id : &i32) -> Vec<GameAchievement> {

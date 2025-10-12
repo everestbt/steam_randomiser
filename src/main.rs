@@ -33,6 +33,10 @@ struct Args {
     #[arg(short, long)]
     exclude_achievement: Option<i32>,
 
+    /// Return a list of completed games
+    #[arg(short, long)]
+    completed_games: bool,
+
     /// Game name used for certain commands
     #[arg(short, long)]
     game_name: Option<String>,
@@ -102,62 +106,68 @@ async fn main() -> Result<(), reqwest::Error> {
         if !request_store::increment().unwrap() {
             panic!("Hit request limit, wait until tomorrow");
         }
-        let player_achievements: Vec<achievement_fetch::PlayerAchievement> = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await.achievements;
-
-        println!("Found the achievements!");
-
-        // Get details of the achievements
-        if !request_store::increment().unwrap() {
-            panic!("Hit request limit, wait until tomorrow");
-        }
-        let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(&key, &game.appid).await;
-
-        println!("Got the achievement details!");
-
-        // Load currently listed achievements
-        let current_goals_for_app: Vec<achievement_store::Achievement> = achievement_store::get_achievements_for_app(&game.appid).expect("Failed to load current goals");
-
-        // Load excluded achievement
-        let excluded_achievement_for_app: Vec<excluded_achievement_store::ExcludedAchievement> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements");
-
-        // Randomly select achievement from game
-        let filter_to_unachieved: Vec<&achievement_fetch::PlayerAchievement> = player_achievements
-            .iter()
-            .filter(|a| a.achieved == 0) // Filter out achieved
-            .filter(|a| !current_goals_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out already in goals
-            .filter(|a| !excluded_achievement_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out any excluded achievements
-            .collect();
-
-        println!(
-            "You have {:#?} achievements left in this game",
-            filter_to_unachieved.len() + current_goals_for_app.len()
-        );
-
-        // Check there is something still in it
-        if filter_to_unachieved.len() == 0 {
-            println!("Nothing left to add to goals!");
+        let achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;
+        if achievements.is_none() {
+            println!("{game} doesn't have any achievements", game = game_name);
         }
         else {
-            let mut rng = rand::rng();
-            let random_achievement = filter_to_unachieved.choose(&mut rng).unwrap();
-            let selected_achievement_desc: Vec<&achievement_fetch::GameAchievement> = achievements
+            let player_achievements: Vec<achievement_fetch::PlayerAchievement> = achievements.unwrap().achievements;
+
+            println!("Found the achievements!");
+
+            // Get details of the achievements
+            if !request_store::increment().unwrap() {
+                panic!("Hit request limit, wait until tomorrow");
+            }
+            let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(&key, &game.appid).await;
+
+            println!("Got the achievement details!");
+
+            // Load currently listed achievements
+            let current_goals_for_app: Vec<achievement_store::Achievement> = achievement_store::get_achievements_for_app(&game.appid).expect("Failed to load current goals");
+
+            // Load excluded achievement
+            let excluded_achievement_for_app: Vec<excluded_achievement_store::ExcludedAchievement> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements");
+
+            // Randomly select achievement from game
+            let filter_to_unachieved: Vec<&achievement_fetch::PlayerAchievement> = player_achievements
                 .iter()
-                .filter(|a| a.name == random_achievement.apiname)
+                .filter(|a| a.achieved == 0) // Filter out achieved
+                .filter(|a| !current_goals_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out already in goals
+                .filter(|a| !excluded_achievement_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out any excluded achievements
                 .collect();
-            println!("And your selected achievement is:");
-            let a = selected_achievement_desc.get(0).unwrap();
 
             println!(
-                "{achievement} : {description}",
-                achievement = a.display_name,
-                description = a
-                    .description
-                    .clone()
-                    .unwrap_or("no description".to_string())
+                "You have {:#?} achievements left in this game",
+                filter_to_unachieved.len() + current_goals_for_app.len()
             );
-            // Save the achievement
-            achievement_store::save_achievement(&a.name, &game.appid).expect("Failed to save achievement");
-            println!("Saved the achievement!");
+
+            // Check there is something still in it
+            if filter_to_unachieved.len() == 0 {
+                println!("Nothing left to add to goals!");
+            }
+            else {
+                let mut rng = rand::rng();
+                let random_achievement = filter_to_unachieved.choose(&mut rng).unwrap();
+                let selected_achievement_desc: Vec<&achievement_fetch::GameAchievement> = achievements
+                    .iter()
+                    .filter(|a| a.name == random_achievement.apiname)
+                    .collect();
+                println!("And your selected achievement is:");
+                let a = selected_achievement_desc.get(0).unwrap();
+
+                println!(
+                    "{achievement} : {description}",
+                    achievement = a.display_name,
+                    description = a
+                        .description
+                        .clone()
+                        .unwrap_or("no description".to_string())
+                );
+                // Save the achievement
+                achievement_store::save_achievement(&a.name, &game.appid).expect("Failed to save achievement");
+                println!("Saved the achievement!");
+            }
         }
     }
     else if args.goals {
@@ -173,7 +183,7 @@ async fn main() -> Result<(), reqwest::Error> {
                 if !request_store::increment().unwrap() {
                     panic!("Hit request limit, wait until tomorrow");
                 }
-                let player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await;
+                let player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await.expect("Somehow a game with no achievements has ended up with one?!?");
                 app_player_achievement_map.insert(a.app_id, player);
                 loaded_player = app_player_achievement_map.get(&a.app_id).unwrap();
             }
@@ -223,6 +233,26 @@ async fn main() -> Result<(), reqwest::Error> {
         achievement_store::delete_achievement(&args.exclude_achievement.unwrap()).expect("Failed to delete achievement");
         // Add it to the list of excluded achievements
         excluded_achievement_store::save_excluded_achievement(&achievement.achievement_name, &achievement.app_id).expect("Failed to save the exclusion");
+    }
+    else if args.completed_games {
+        // Get full game list
+        let games = game_fetch::get_owned_games(&key, &steam_id).await;
+        for game in games {
+            // Check for any excluded achievements
+            let excluded_achievements: Vec<String> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements").iter().map(|a| a.achievement_name.clone()).collect();
+            // Get the achievements completed for that game
+            let player_achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;
+            if player_achievements.is_none() {
+                continue;
+            }
+            let unachieved = player_achievements.unwrap().achievements.iter()
+                .filter(|a| !excluded_achievements.contains(&a.apiname))
+                .filter(|a| a.achieved==0)
+                .count();
+            if unachieved == 0 {
+                println!("Completed game: {name}", name = game.name);
+            }
+        }
     }
 
     if args.debug {
