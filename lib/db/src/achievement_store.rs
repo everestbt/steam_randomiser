@@ -21,7 +21,7 @@ pub fn get_achievement(id: &i32) -> Result<Achievement> {
         })
     })?;
     let val = achieve_iter.next();
-    Ok(val.expect("Id not found")?)
+    val.expect("Id not found")
 }
 
 pub fn get_achievements() -> Result<Vec<Achievement>> {

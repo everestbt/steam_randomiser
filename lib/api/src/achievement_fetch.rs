@@ -66,16 +66,14 @@ pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &i32)
         .send()
         .await;
 
-    match req.is_err() {
-        true => panic!(),
-        false => (),
+    if req.is_err() {
+        panic!()
     }
 
     let response:Result<PlayerStatsResponse, reqwest::Error>  = req.unwrap().json().await;
 
-    match response.is_err() {
-        true => panic!(),
-        false => (),
+    if response.is_err() {
+        panic!()
     }
 
     let val = response.unwrap();
@@ -103,16 +101,14 @@ pub async fn get_game_achievements(key : &str, app_id : &i32) -> Vec<GameAchieve
         .send()
         .await;
 
-    match req.is_err() {
-        true => panic!(),
-        false => (),
+    if req.is_err() {
+        panic!()
     }
 
     let response:Result<GameSchemaResponse, reqwest::Error>  = req.unwrap().json().await;
 
-    match response.is_err() {
-        true => panic!(),
-        false => (),
+    if response.is_err() {
+        panic!()
     }
 
     response.unwrap().game.available_game_stats.achievements

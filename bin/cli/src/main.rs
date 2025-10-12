@@ -81,7 +81,7 @@ async fn main() -> Result<(), reqwest::Error> {
             .filter(|a| a.name.to_lowercase().contains(&game_name_lowercase))
             .collect();
 
-        if filter_to_game.len() == 0 {
+        if filter_to_game.is_empty() {
             println!("Failed to find that game");
         } else if filter_to_game.len() > 1 {
             println!("Result is ambiguous");
@@ -91,7 +91,7 @@ async fn main() -> Result<(), reqwest::Error> {
             println!("TAKING THE FIRST ONE:");
         }
 
-        let game = filter_to_game.get(0).unwrap();
+        let game = filter_to_game.first().unwrap();
 
         println!("Found the game {:#?}!", game.name);
 
@@ -130,7 +130,7 @@ async fn main() -> Result<(), reqwest::Error> {
             );
 
             // Check there is something still in it
-            if filter_to_unachieved.len() == 0 {
+            if filter_to_unachieved.is_empty() {
                 println!("Nothing left to add to goals!");
             }
             else {
@@ -141,7 +141,7 @@ async fn main() -> Result<(), reqwest::Error> {
                     .filter(|a| a.name == random_achievement.apiname)
                     .collect();
                 println!("And your selected achievement is:");
-                let a = selected_achievement_desc.get(0).unwrap();
+                let a = selected_achievement_desc.first().unwrap();
 
                 println!(
                     "{achievement} : {description}",
@@ -238,7 +238,7 @@ async fn main() -> Result<(), reqwest::Error> {
 
     if args.debug {
         let request_count = request_store::get_count().expect("Failed to load request count");
-        println!("Request count {count}", count = request_count.to_string());
+        println!("Request count {count}", count = request_count);
     }
     Ok(())
 }

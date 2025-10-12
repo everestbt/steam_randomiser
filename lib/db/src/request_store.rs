@@ -69,13 +69,12 @@ pub fn get_count() -> Result<i32> {
     })?;
 
     let row = result.next();
-    let count;
-    if row.is_none() {
-        count = 0;
+    let count = if row.is_none() {
+        0
     }
     else {
-        count = row.unwrap().unwrap().count;
-    }
+        row.unwrap().unwrap().count
+    };
 
     Ok(count)
 }

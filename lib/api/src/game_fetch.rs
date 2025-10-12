@@ -32,17 +32,15 @@ pub async fn get_owned_games(key : &str, steam_id : &str) -> Vec<Game> {
         .send()
         .await;
 
-    match req.is_err() {
-        true => panic!(),
-        false => (),
+    if req.is_err() {
+        panic!()
     }
     let response: Result<SteamOwnedGamesResponse, reqwest::Error> = req.unwrap()
         .json()
         .await;
 
-    match response.is_err() {
-        true => panic!(),
-        false => (),
+    if response.is_err() {
+        panic!()
     }
 
     response.unwrap().response.games

@@ -2,7 +2,6 @@ use api::game_fetch;
 
 use eframe::egui;
 use std::env;
-use tokio;
 
 fn main() -> eframe::Result {
     let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
