@@ -2,7 +2,7 @@
 name = "api"
 version = "0.0.0"
 edition = "2021"
-description = "Library for accessing "
+description = "Library for accessing the steam API"
 
 
 [dependencies]

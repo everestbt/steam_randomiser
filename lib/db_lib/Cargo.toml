@@ -2,7 +2,7 @@
 name = "db_lib"
 version = "0.0.0"
 edition = "2021"
-description = "The UI for steam random"
+description = "A library for use with any database files"
 
 
 [dependencies]
