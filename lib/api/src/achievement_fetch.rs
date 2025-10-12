@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use db::request_store;
 
 // Player Achievements Request
 #[derive(Debug, Serialize, Deserialize)]
@@ -57,6 +58,9 @@ pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &i32)
         + "&key=" + key + "&steamid=" + steam_id
         + "&appid=" + &app_id.to_string();
 
+    if !request_store::increment().unwrap() {
+        panic!("Hit request limit, wait until tomorrow");
+    }
     let req: Result<reqwest::Response, reqwest::Error> = reqwest::Client::new()
         .get(get_player_achievements_request)
         .send()
@@ -91,6 +95,9 @@ pub async fn get_game_achievements(key : &str, app_id : &i32) -> Vec<GameAchieve
     let get_schema_for_game_request: String =
         "https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=".to_owned() + key + "&appid=" + &app_id.to_string();
 
+    if !request_store::increment().unwrap() {
+        panic!("Hit request limit, wait until tomorrow");
+    }
     let req: Result<reqwest::Response, reqwest::Error> = reqwest::Client::new()
         .get(get_schema_for_game_request)
         .send()

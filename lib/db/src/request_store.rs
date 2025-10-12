@@ -49,7 +49,8 @@ pub fn increment() -> Result<bool> {
                 params![today, count],
             )?;
     }
-
+    
+    // Check that the value is less than or equal to the set limit of 10000
     Ok(count <= 10000)
 }
 

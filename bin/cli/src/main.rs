@@ -1,5 +1,5 @@
-use api::{achievement_fetch, game_fetch, request_store};
-use db::{key_store, steam_id_store, achievement_store, excluded_achievement_store};
+use api::{achievement_fetch, game_fetch};
+use db::{key_store, steam_id_store, achievement_store, excluded_achievement_store, request_store};
 
 use std::collections::{HashMap};
 use rand::prelude::*;
@@ -72,9 +72,6 @@ async fn main() -> Result<(), reqwest::Error> {
         let game_name: String = args.game_name.expect("Must pass in a game-name");
         println!("Searching for {:#?}", game_name);
         // Fetch games
-        if !request_store::increment().unwrap() {
-            panic!("Hit request limit, wait until tomorrow");
-        }
         let owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
 
         // Search for the game title
@@ -99,9 +96,6 @@ async fn main() -> Result<(), reqwest::Error> {
         println!("Found the game {:#?}!", game.name);
 
         // Get the achievements for a specific game
-        if !request_store::increment().unwrap() {
-            panic!("Hit request limit, wait until tomorrow");
-        }
         let achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;
         if achievements.is_none() {
             println!("{game} doesn't have any achievements", game = game_name);
@@ -112,9 +106,6 @@ async fn main() -> Result<(), reqwest::Error> {
             println!("Found the achievements!");
 
             // Get details of the achievements
-            if !request_store::increment().unwrap() {
-                panic!("Hit request limit, wait until tomorrow");
-            }
             let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(&key, &game.appid).await;
 
             println!("Got the achievement details!");
@@ -176,9 +167,6 @@ async fn main() -> Result<(), reqwest::Error> {
             let player_achievements = app_player_achievement_map.get(&a.app_id);
             let loaded_player: &achievement_fetch::PlayerAchievements;
             if player_achievements.is_none() {
-                if !request_store::increment().unwrap() {
-                    panic!("Hit request limit, wait until tomorrow");
-                }
                 let player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await.expect("Somehow a game with no achievements has ended up with one?!?");
                 app_player_achievement_map.insert(a.app_id, player);
                 loaded_player = app_player_achievement_map.get(&a.app_id).unwrap();
@@ -194,9 +182,6 @@ async fn main() -> Result<(), reqwest::Error> {
             let game_achieveements = app_game_achievement_map.get(&a.app_id);
             let loaded_game_achievement: &Vec<achievement_fetch::GameAchievement>;
             if game_achieveements.is_none() {
-                if !request_store::increment().unwrap() {
-                    panic!("Hit request limit, wait until tomorrow");
-                }
                 let game_achieve = achievement_fetch::get_game_achievements(&key, &a.app_id).await;
                 app_game_achievement_map.insert(a.app_id, game_achieve);
                 loaded_game_achievement = app_game_achievement_map.get(&a.app_id).unwrap();

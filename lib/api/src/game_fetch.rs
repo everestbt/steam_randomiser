@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use db::request_store;
 
 // Owned Games Request
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,11 +19,14 @@ struct SteamOwnedGamesResponse {
     response: OwnedGames,
 }
 
+/// Fetch games for steamid
 pub async fn get_owned_games(key : &str, steam_id : &str) -> Vec<Game> {
-    // Fetch games for steamid
+
     let get_owned_games_request: String =
         "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?format=json&include_appinfo=true&include_played_free_games=true".to_owned() + "&key=" + key + "&steamid=" + steam_id;
-
+    if !request_store::increment().unwrap() {
+        panic!("Hit request limit, wait until tomorrow");
+    }
     let req: Result<reqwest::Response, reqwest::Error> = reqwest::Client::new()
         .get(get_owned_games_request)
         .send()

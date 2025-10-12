@@ -229,7 +229,6 @@ dependencies = [
  "chrono",
  "clap",
  "db",
- "db_lib",
  "directories",
  "eframe",
  "rand",
