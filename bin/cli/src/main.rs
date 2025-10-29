@@ -217,8 +217,12 @@ async fn main() -> Result<(), reqwest::Error> {
     }
     else if args.completed_games {
         // Get full game list
-        let games = game_fetch::get_owned_games(&key, &steam_id).await;
+        let games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
         for game in games {
+            // Skip the game if no playtime
+            if game.playtime_forever == 0 {
+                continue;
+            }
             // Check for any excluded achievements
             let excluded_achievements: Vec<String> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements").iter().map(|a| a.achievement_name.clone()).collect();
             // Get the achievements completed for that game
