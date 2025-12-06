@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use db::request_store;
 
 // Player Achievements Request
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlayerAchievement {
     pub apiname: String,
     pub achieved: i32,
@@ -29,7 +29,7 @@ struct PlayerStatsResponse {
 }
 
 // Game Schema request
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GameAchievement {
     pub name: String,
     #[serde(rename = "displayName")]

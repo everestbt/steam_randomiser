@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use db::request_store;
 
 // Owned Games Request
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Game {
     pub appid: i32,
     pub name: String,
