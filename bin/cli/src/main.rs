@@ -1,5 +1,5 @@
 use api::{achievement_fetch::{self, GameAchievement}, game_fetch};
-use db::{key_store, steam_id_store, achievement_store, excluded_achievement_store, request_store};
+use db::{key_store, steam_id_store, achievement_store, excluded_achievement_store, request_store, game_completion_cache};
 
 use std::collections::{HashMap};
 use rand::prelude::*;
@@ -40,6 +40,10 @@ struct Args {
     /// Game name used for certain commands
     #[arg(short, long)]
     game_name: Option<String>,
+
+    /// Purge specific data tables
+    #[arg(short, long)]
+    purge: Option<String>,
 
     /// Show debug level information
     #[arg(short, long)]
@@ -261,9 +265,19 @@ async fn main() -> Result<(), reqwest::Error> {
     else if args.completed_games {
         // Get full game list
         let games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
+        // Get completed games
+        let completed_games: HashMap<i32, game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion().expect("Failed to load completed games").iter().map(|n| (n.app_id, n.clone())).collect();
         for game in games {
             // Skip the game if no playtime
             if game.playtime_forever == 0 {
+                continue;
+            }
+            // Check if cached and not played since
+            let cache_check = completed_games.get(&game.appid);
+            if cache_check.is_some_and(|c| c.last_played == game.last_played) {
+                if cache_check.is_some_and(|c| c.complete && c.has_achievements) {
+                    println!("Completed game: {name}", name = game.name);
+                }
                 continue;
             }
             // Check for any excluded achievements
@@ -271,15 +285,27 @@ async fn main() -> Result<(), reqwest::Error> {
             // Get the achievements completed for that game
             let player_achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;
             if player_achievements.is_none() {
+                // Game has no achievements, save it as completed
+                game_completion_cache::save_game_completion(&game.appid, true, game.last_played, false).expect("Failed to save game completion");
                 continue;
             }
             let unachieved = player_achievements.unwrap().achievements.iter()
                 .filter(|a| !excluded_achievements.contains(&a.apiname))
                 .filter(|a| a.achieved==0)
                 .count();
+            // Display if it is complete and save the current result
             if unachieved == 0 {
+                game_completion_cache::save_game_completion(&game.appid, true, game.last_played, true).expect("Failed to save game completion");
                 println!("Completed game: {name}", name = game.name);
             }
+            else {
+                game_completion_cache::save_game_completion(&game.appid, false, game.last_played, true).expect("Failed to save game completion");
+            }
+        }
+    }
+    else if args.purge.is_some() {
+        if args.purge.is_some_and(|f| f == "completed_games") {
+            game_completion_cache::drop_table().expect("Failed to drop table");
         }
     }
 

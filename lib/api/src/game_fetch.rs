@@ -6,7 +6,9 @@ use db::request_store;
 pub struct Game {
     pub appid: i32,
     pub name: String,
-    pub playtime_forever: i32 // This is the number of minutes played
+    pub playtime_forever: i32, // This is the number of minutes played
+    #[serde(rename = "rtime_last_played")]
+    pub last_played: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
