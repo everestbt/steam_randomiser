@@ -5,7 +5,7 @@ use db_lib::db_manager;
 #[derive(Clone)]
 pub struct GameCompletion {
     pub app_id: i32,
-    pub complete: bool,
+    pub complete: i8,
     pub last_played: i64,
     pub has_achievements: bool,
 }
@@ -31,7 +31,28 @@ pub fn get_game_completion() -> Result<Vec<GameCompletion>> {
     Ok(vec)
 }
 
-pub fn save_game_completion(app_id: &i32, complete: bool, last_played: i64, has_achievements: bool) -> Result<()> {
+pub fn get_game_completion_above_or_equal(completed: i8) -> Result<Vec<GameCompletion>> {
+    let conn: Connection = db_manager::get_connection();
+    create_table(&conn)?;
+
+    let mut stmt = conn.prepare("SELECT app_id, complete, last_played, has_achievements FROM steam_game_completion WHERE complete >= ?1 AND has_achievements = true ORDER BY complete DESC")?;
+    let achieve_iter = stmt.query_map([completed], |row| {
+        Ok(GameCompletion {
+            app_id: row.get(0)?,
+            complete: row.get(1)?,
+            last_played: row.get(2)?,
+            has_achievements: row.get(3)?,
+        })
+    })?;
+
+    let mut vec : Vec<GameCompletion> = Vec::new();
+    for d in achieve_iter {
+        vec.push(d.unwrap());
+    }
+    Ok(vec)
+}
+
+pub fn save_game_completion(app_id: &i32, complete: i8, last_played: i64, has_achievements: bool) -> Result<()> {
     // Connect to SQLite database (creates the file if it doesn't exist)
     let conn: Connection = db_manager::get_connection();
     create_table(&conn)?;
@@ -61,7 +82,7 @@ fn create_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS steam_game_completion (
             app_id INTEGER PRIMARY KEY,
-            complete BOOL NOT NULL,
+            complete INTEGER NOT NULL,
             last_played INTEGER NOT NULL,
             has_achievements BOOL NOT NULL 
         )",

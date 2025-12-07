@@ -22,3 +22,5 @@ steam-rand --help
 ```
 
 The Steam Web API can be flaky, there is no automatic retry, just run it again.
+
+Some calls use a cache, so the first time may be slow as it populates with your data.
