@@ -103,66 +103,24 @@ async fn main() -> Result<(), reqwest::Error> {
 
         println!("Found the game {:#?}!", game.name);
 
-        // Get the achievements for a specific game
-        let achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;
-        if achievements.is_none() {
-            println!("{game} doesn't have any achievements", game = game_name);
+        let random_achievement: Option<GameAchievement> = get_random_achievement_for_game(&key, &steam_id, &game).await;
+        if random_achievement.is_none() {
+            println!("No achievements left in this game!");
         }
         else {
-            let player_achievements: Vec<achievement_fetch::PlayerAchievement> = achievements.unwrap().achievements;
-
-            println!("Found the achievements!");
-
-            // Get details of the achievements
-            let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(&key, &game.appid).await;
-
-            println!("Got the achievement details!");
-
-            // Load currently listed achievements
-            let current_goals_for_app: Vec<achievement_store::Achievement> = achievement_store::get_achievements_for_app(&game.appid).expect("Failed to load current goals");
-
-            // Load excluded achievement
-            let excluded_achievement_for_app: Vec<excluded_achievement_store::ExcludedAchievement> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements");
-
-            // Randomly select achievement from game
-            let filter_to_unachieved: Vec<&achievement_fetch::PlayerAchievement> = player_achievements
-                .iter()
-                .filter(|a| a.achieved == 0) // Filter out achieved
-                .filter(|a| !current_goals_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out already in goals
-                .filter(|a| !excluded_achievement_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out any excluded achievements
-                .collect();
-
+            let a = random_achievement.unwrap();
+            println!("And your selected achievement is:");
             println!(
-                "You have {:#?} achievements left in this game",
-                filter_to_unachieved.len() + current_goals_for_app.len()
-            );
-
-            // Check there is something still in it
-            if filter_to_unachieved.is_empty() {
-                println!("Nothing left to add to goals!");
-            }
-            else {
-                let mut rng = rand::rng();
-                let random_achievement = filter_to_unachieved.choose(&mut rng).unwrap();
-                let selected_achievement_desc: Vec<&achievement_fetch::GameAchievement> = achievements
-                    .iter()
-                    .filter(|a| a.name == random_achievement.apiname)
-                    .collect();
-                println!("And your selected achievement is:");
-                let a = selected_achievement_desc.first().unwrap();
-
-                println!(
-                    "{achievement} : {description}",
-                    achievement = a.display_name,
-                    description = a
-                        .description
-                        .clone()
-                        .unwrap_or("no description".to_string())
+                "{achievement} : {description}",
+                achievement = a.display_name,
+                description = a
+                    .description
+                    .clone()
+                    .unwrap_or("no description".to_string())
                 );
-                // Save the achievement
-                achievement_store::save_achievement(&a.name, &game.appid).expect("Failed to save achievement");
-                println!("Saved the achievement!");
-            }
+            // Save the achievement
+            achievement_store::save_achievement(&a.name, &game.appid).expect("Failed to save achievement");
+            println!("Saved the achievement!");
         }
     }
     else if args.random_game {
