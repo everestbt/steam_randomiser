@@ -240,8 +240,10 @@ async fn main() -> Result<(), reqwest::Error> {
         refresh_game_completion_cache(&key, &steam_id, &games).await;
         let progressed_games: Vec<game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion_above_or_equal(1).expect("Failed to load completed games");
         for g in progressed_games {
-            let game = games.iter().find(|game| game.appid == g.app_id).unwrap();
-            println!("{name} : {progress}", name = game.name, progress = g.complete);
+            if g.complete != 100 {
+                let game = games.iter().find(|game| game.appid == g.app_id).unwrap();
+                println!("{name} : {progress}", name = game.name, progress = g.complete);
+            }
         }
     }
     else if args.purge.is_some() {
