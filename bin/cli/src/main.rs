@@ -129,42 +129,37 @@ async fn main() -> Result<(), reqwest::Error> {
     }
     else if args.random_game {
         // Fetch games
-        let owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
-
-        let mut game: Option<game_fetch::Game> = None;
-        let mut achievement: Option<GameAchievement> = None;
-        let mut rng = rand::rng();
-        while game.is_none() {
-            let random_game = owned_games.choose(&mut rng).cloned().unwrap();
+        let mut owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
+        let mut game_and_achievement: Option<(game_fetch::Game, GameAchievement)> = None;
+        while owned_games.len() > 0 {
+            let index = (rand::random::<f32>() * owned_games.len() as f32).floor() as usize;
+            let random_game = owned_games.remove(index);
             let random_achievement: Option<GameAchievement> = get_random_achievement_for_game(&key, &steam_id, &random_game).await;
-            if random_achievement.is_none() {
-                game = None;
-            }
-            else {
-                game = Some(random_game);
-                achievement = random_achievement;
+            if random_achievement.is_some() {
+                game_and_achievement = Some((random_game, random_achievement.unwrap()));
+                break;
             }
         }
-        // Unwrap the results
-        let g = game.unwrap();
-        let a = achievement.unwrap();
-
-        // Show the results
-        println!("Found the game {:#?}!", g.name);
-        println!("And your selected achievement is:");
-        println!(
-            "{achievement} : {description}",
-            achievement = a.display_name,
-            description = a
-                .description
-                .clone()
-                .unwrap_or("no description".to_string())
-                );
-        
-        // Save the achievement
-        achievement_store::save_achievement(&a.name, &g.appid).expect("Failed to save achievement");
-        println!("Saved the achievement!");
-
+        match game_and_achievement {
+            Some(g_a) => {
+                // Show the results
+                println!("Found the game {:#?}!", g_a.0.name);
+                println!("And your selected achievement is:");
+                println!(
+                    "{achievement} : {description}",
+                    achievement = g_a.1.display_name,
+                    description = g_a.1
+                        .description
+                        .clone()
+                        .unwrap_or("no description".to_string())
+                        );
+                
+                // Save the achievement
+                achievement_store::save_achievement(&g_a.1.name, &g_a.0.appid).expect("Failed to save achievement");
+                println!("Saved the achievement!");
+            },
+            None => println!("No games left with any achievements")
+        }
     }
     else if args.goals {
         let mut achievements: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
