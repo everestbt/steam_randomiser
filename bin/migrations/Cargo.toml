@@ -1,0 +1,18 @@
+[package]
+name = "migrations"
+version = "0.0.0"
+edition = "2021"
+description = "The migrations for the database of steam randomiser"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+clap.workspace = true
+rusqlite.workspace = true
+directories.workspace = true
+
+[[bin]]
+path = "src/main.rs"
+name = "steam-rand-migrations"

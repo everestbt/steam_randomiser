@@ -78,8 +78,6 @@ async fn main() -> Result<(), reqwest::Error> {
         steam_id = steam_id_store::get_id().expect("Failed to load a key, use --id first");
     }
 
-    
-
     if args.random_achievement {
         let game_name: String = args.game_name.expect("Must pass in a game-name");
         println!("Searching for {:#?}", game_name);
@@ -123,7 +121,7 @@ async fn main() -> Result<(), reqwest::Error> {
                     .unwrap_or("no description".to_string())
                 );
             // Save the achievement
-            achievement_store::save_achievement(&a.name, &game.appid).expect("Failed to save achievement");
+            achievement_store::save_achievement(&a.name, &a.display_name, &a.description, &game.appid, &game.last_played).expect("Failed to save achievement");
             println!("Saved the achievement!");
         }
     }
@@ -155,7 +153,7 @@ async fn main() -> Result<(), reqwest::Error> {
                         );
                 
                 // Save the achievement
-                achievement_store::save_achievement(&g_a.1.name, &g_a.0.appid).expect("Failed to save achievement");
+                achievement_store::save_achievement(&g_a.1.name, &g_a.1.display_name, &g_a.1.description, &g_a.0.appid, &g_a.0.last_played).expect("Failed to save achievement");
                 println!("Saved the achievement!");
             },
             None => println!("No games left with any achievements")
@@ -165,50 +163,48 @@ async fn main() -> Result<(), reqwest::Error> {
         let mut achievements: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
         achievements.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
         let mut app_player_achievement_map: HashMap<i32, achievement_fetch::PlayerAchievements> = HashMap::new();
-        let mut app_game_achievement_map: HashMap<i32, Vec<achievement_fetch::GameAchievement>> = HashMap::new();
+        let owned_games: HashMap<i32, game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await.iter().map(|n| (n.appid, n.clone())).collect();
         for a in achievements {
-            // Check if the app is already loaded (PlayerAchievements)
-            let player_achievements = app_player_achievement_map.get(&a.app_id);
-            let loaded_player: &achievement_fetch::PlayerAchievements;
-            if player_achievements.is_none() {
-                let player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await.expect("Somehow a game with no achievements has ended up with one?!?");
-                app_player_achievement_map.insert(a.app_id, player);
-                loaded_player = app_player_achievement_map.get(&a.app_id).unwrap();
-            }
-            else {
-                loaded_player = player_achievements.unwrap();
-            }
+            // Get the game out of the map
+            let game = owned_games.get(&a.app_id).unwrap();
             // If a game-name is not contained, then filter it out
-            if args.game_name.clone().is_some_and(|x| !loaded_player.game_name.to_lowercase().contains(&x.to_lowercase())) {
+            if args.game_name.clone().is_some_and(|x| !game.name.to_lowercase().contains(&x.to_lowercase())) {
                 continue;
             }
-            // Check if the app is already loaded (GameAchievements)
-            let game_achieveements = app_game_achievement_map.get(&a.app_id);
-            let loaded_game_achievement: &Vec<achievement_fetch::GameAchievement>;
-            if game_achieveements.is_none() {
-                let game_achieve = achievement_fetch::get_game_achievements(&key, &a.app_id).await;
-                app_game_achievement_map.insert(a.app_id, game_achieve);
-                loaded_game_achievement = app_game_achievement_map.get(&a.app_id).unwrap();
+            // Check if the last_played has changed
+            if game.last_played == a.last_played {
+                // Not changed so just print the value
+                if a.description.is_none() {
+                    println!("{game} : {name} [{id}]", name = a.display_name, game = game.name, id = a.id);
+                }
+                else{
+                    println!("{game} : {name} - {description} [{id}]", name = a.display_name, game = game.name, description = a.description.clone().unwrap(), id = a.id);
+                }
             }
             else {
-                loaded_game_achievement = game_achieveements.unwrap();
-            }
-
-            // Find the name of the achievement
-            let found_achievement = loaded_game_achievement.iter().find(|ga| a.achievement_name == ga.name).unwrap();
-
-            // Remove any that are already completed
-            if loaded_player.achievements.iter().find(|x| x.apiname==a.achievement_name).unwrap().achieved == 1 {
-                achievement_store::delete_achievement(&a.id).expect("Failed to delete achievement");
-                println!("Well done! You completed {game} : {name}", name = found_achievement.display_name, game = loaded_player.game_name);
-                continue;
-            } 
-            
-            if found_achievement.description.is_none() {
-                println!("{game} : {name} [{id}]", name = found_achievement.display_name, game = loaded_player.game_name, id = a.id);
-            }
-            else{
-                println!("{game} : {name} - {description} [{id}]", name = found_achievement.display_name, game = loaded_player.game_name, description = found_achievement.description.clone().unwrap(), id = a.id);
+                // Check if the app is already loaded (PlayerAchievements)
+                let player_achievements = app_player_achievement_map.get(&a.app_id);
+                let loaded_player: &achievement_fetch::PlayerAchievements;
+                if player_achievements.is_none() {
+                    let player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await.expect("Somehow a game with no achievements has ended up with one?!?");
+                    app_player_achievement_map.insert(a.app_id, player);
+                    loaded_player = app_player_achievement_map.get(&a.app_id).unwrap();
+                }
+                else {
+                    loaded_player = player_achievements.unwrap();
+                }
+                // Remove any that are already completed
+                if loaded_player.achievements.iter().find(|x| x.apiname==a.achievement_name).unwrap().achieved == 1 {
+                    achievement_store::delete_achievement(&a.id).expect("Failed to delete achievement");
+                    println!("Well done! You completed {game} : {name}", name = a.display_name, game = game.name);
+                    continue;
+                } 
+                if a.description.is_none() {
+                    println!("{game} : {name} [{id}]", name = a.display_name, game = game.name, id = a.id);
+                }
+                else{
+                    println!("{game} : {name} - {description} [{id}]", name = a.display_name, game = game.name, description = a.description.clone().unwrap(), id = a.id);
+                }
             }
         }
     }
