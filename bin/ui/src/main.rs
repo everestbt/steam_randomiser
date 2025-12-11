@@ -15,17 +15,14 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
-    let owned_games: Vec<game_fetch::Game> = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
+    let mut owned_games: Vec<game_fetch::Game> = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
+    owned_games.sort_by(|a,b| a.name.cmp(&b.name));
 
     eframe::run_simple_native("My egui App", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Welcome to Steam Randomiser");
-            // Get game list
             egui::ScrollArea::vertical().show(ui, |ui| {
-                let owned_clone = owned_games.iter().clone();
-
-                // Add a lot of widgets here.
-                for game in owned_clone {
+                for game in &owned_games {
                     // Add some spacing to let it breathe
                     ui.add_space(5.0);
 
@@ -33,8 +30,6 @@ fn main() -> eframe::Result {
                     if ui
                         .add(egui::Label::new(&game.name).sense(egui::Sense::click()))
                         .clicked() {
-                        // Set this item to be the currently edited one
-                        println!("PRESSED {game}", game=game.name);
                     };
 
                     // Add some spacing to let it breathe
