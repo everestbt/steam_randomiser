@@ -31,17 +31,38 @@ fn main() -> eframe::Result {
     let mut game_list: Vec<GameListItem> = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id)).iter().map(|g| GameListItem { game: g.clone(), selected: false }).collect();
     game_list.sort_by(|a,b| a.game.name.cmp(&b.game.name));
 
-    let goals: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
+    let mut goals: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
+    goals.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
  
     eframe::run_simple_native("Steam randomiser", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Welcome to Steam Randomiser");
 
-            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                // Display the first selected game
-                let selected = game_list.iter().filter(|a| a.selected);
-                ui.with_layout(egui::Layout::top_down(egui::Align::TOP), |ui| {
-                    // List out goals for each selected item    
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {               
+                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                    // List out all goals
+                    ui.heading("Goals");
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            for g in &goals {
+                                let result;
+                                let game_name = game_list.iter().find(|game| game.game.appid == g.app_id).unwrap().game.name.clone();
+                                if g.description.is_some() {
+                                    result = format!("{} : {} : {}", game_name, g.display_name.clone(), g.description.clone().unwrap());
+                                }
+                                else {
+                                    result = format!("{} : {}", game_name, g.display_name.clone());
+                                }
+                                ui.label(result);
+                                ui.add_space(5.0);
+                            }
+                        });
+                    });
+                });    
+                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                    ui.heading("Selected");
+                    // List out goals for each selected items    
+                    let selected = game_list.iter().filter(|a| a.selected);
                     for s in selected {
                         ui.add(egui::Label::new(s.game.name.clone()));
                         ui.add_space(5.0);
@@ -62,14 +83,16 @@ fn main() -> eframe::Result {
                         }
                         ui.add_space(5.0);
                     }   
-                });      
+                });
+                    
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.with_layout(egui::Layout::top_down(egui::Align::TOP), |ui| {
+                    ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                         for game in &mut game_list {
                             ui.add_space(5.0);
                             // Add a clickable game using egui::Label::sense()
                             if ui
-                                .add(egui::Label::new(&game.game.name).sense(egui::Sense::click()))
+                                .add(egui::Label::new(&game.game.name)
+                                .sense(egui::Sense::click()))
                                 .clicked() {
                                     game.select();
                             };
