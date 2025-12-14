@@ -1,5 +1,6 @@
 use api::game_fetch;
 use db::achievement_store;
+use goals_lib::goals;
 
 use eframe::egui;
 use std::env;
@@ -31,8 +32,7 @@ fn main() -> eframe::Result {
     let mut game_list: Vec<GameListItem> = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id)).iter().map(|g| GameListItem { game: g.clone(), selected: false }).collect();
     game_list.sort_by(|a,b| a.game.name.cmp(&b.game.name));
 
-    let mut goals: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
-    goals.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
+    let mut goals: Vec<achievement_store::Achievement> = get_goals();
  
     eframe::run_simple_native("Steam randomiser", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -58,10 +58,10 @@ fn main() -> eframe::Result {
                             }
                         });
                     });
-                });    
+                });  
+                // List out goals for each selected items     
                 ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                     ui.heading("Selected");
-                    // List out goals for each selected items    
                     let selected = game_list.iter().filter(|a| a.selected);
                     for s in selected {
                         ui.add(egui::Label::new(s.game.name.clone()));
@@ -81,10 +81,18 @@ fn main() -> eframe::Result {
                             ui.label(result);
                             ui.add_space(5.0);
                         }
+                        if ui.add(egui::Button::new("Click me")).clicked() {
+                            let random_achievement = runtime.block_on(goals::get_random_achievement_for_game(&key, &steam_id, &s.game));
+                            if random_achievement.is_some() {
+                                let a = random_achievement.unwrap();
+                                achievement_store::save_achievement(&a.name, &a.display_name, &a.description, &s.game.appid, &s.game.last_played).expect("Failed to save achievement");
+                                goals = get_goals();
+                            }
+                        }
                         ui.add_space(5.0);
                     }   
                 });
-                    
+                // Display a list of every owned game that can then be selected/deselected
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                         for game in &mut game_list {
@@ -103,4 +111,10 @@ fn main() -> eframe::Result {
             });   
         });
     })
+}
+
+fn get_goals() -> Vec<achievement_store::Achievement> {
+    let mut goals: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
+    goals.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
+    return goals;
 }

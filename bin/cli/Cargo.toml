@@ -7,6 +7,7 @@ description = "The CLI for steam random"
 [dependencies]
 api.workspace=true
 db.workspace=true
+goals_lib.workspace=true
 serde.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true

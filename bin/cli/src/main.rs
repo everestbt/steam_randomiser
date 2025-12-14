@@ -1,8 +1,8 @@
 use api::{achievement_fetch::{self, GameAchievement}, game_fetch};
 use db::{key_store, steam_id_store, achievement_store, excluded_achievement_store, request_store, game_completion_cache};
+use goals_lib::{goals};
 
 use std::{collections::HashMap};
-use rand::prelude::*;
 use clap::Parser;
 
 // Command line arguments
@@ -105,7 +105,7 @@ async fn main() -> Result<(), reqwest::Error> {
 
         println!("Found the game {:#?}!", game.name);
 
-        let random_achievement: Option<GameAchievement> = get_random_achievement_for_game(&key, &steam_id, &game).await;
+        let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&key, &steam_id, &game).await;
         if random_achievement.is_none() {
             println!("No achievements left in this game!");
         }
@@ -132,7 +132,7 @@ async fn main() -> Result<(), reqwest::Error> {
         while owned_games.len() > 0 {
             let index = (rand::random::<f32>() * owned_games.len() as f32).floor() as usize;
             let random_game = owned_games.remove(index);
-            let random_achievement: Option<GameAchievement> = get_random_achievement_for_game(&key, &steam_id, &random_game).await;
+            let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&key, &steam_id, &random_game).await;
             if random_achievement.is_some() {
                 game_and_achievement = Some((random_game, random_achievement.unwrap()));
                 break;
@@ -248,46 +248,6 @@ async fn main() -> Result<(), reqwest::Error> {
         println!("Request count {count}", count = request_count);
     }
     Ok(())
-}
-
-async fn get_random_achievement_for_game(key : &str, steam_id : &str, game: &game_fetch::Game) -> Option<GameAchievement> {
-    // Get the achievements for a specific game
-        let achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;
-        if achievements.is_none() {
-            return None;
-        }
-        else {
-            let player_achievements: Vec<achievement_fetch::PlayerAchievement> = achievements.unwrap().achievements;
-            // Get details of the achievements
-            let achievements: Vec<achievement_fetch::GameAchievement> = achievement_fetch::get_game_achievements(&key, &game.appid).await;
-
-            // Load currently listed achievements
-            let current_goals_for_app: Vec<achievement_store::Achievement> = achievement_store::get_achievements_for_app(&game.appid).expect("Failed to load current goals");
-
-            // Load excluded achievement
-            let excluded_achievement_for_app: Vec<excluded_achievement_store::ExcludedAchievement> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements");
-
-            // Randomly select achievement from game
-            let filter_to_unachieved: Vec<achievement_fetch::PlayerAchievement> = player_achievements
-                .iter()
-                .filter(|a| a.achieved == 0) // Filter out achieved
-                .filter(|a| !current_goals_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out already in goals
-                .filter(|a| !excluded_achievement_for_app.iter().any(|x| x.achievement_name == a.apiname)) // Filter out any excluded achievements
-                .cloned()
-                .collect();
-
-            // Check there is something still in it
-            if filter_to_unachieved.is_empty() {
-                return None;
-            }
-            else {
-                let mut rng = rand::rng();
-                let random_achievement = filter_to_unachieved.choose(&mut rng).unwrap();
-                return Some(achievements
-                    .iter()
-                    .find(|a| a.name == random_achievement.apiname).cloned().unwrap())
-            }
-        }
 }
 
 async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &Vec<game_fetch::Game>) {

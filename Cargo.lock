@@ -719,6 +719,7 @@ dependencies = [
  "chrono",
  "clap",
  "db",
+ "goals_lib",
  "rand",
  "reqwest",
  "serde",
@@ -1533,6 +1534,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e"
 dependencies = [
  "gl_generator",
+]
+
+[[package]]
+name = "goals_lib"
+version = "0.0.0"
+dependencies = [
+ "api",
+ "db",
+ "rand",
 ]
 
 [[package]]
@@ -3838,6 +3848,7 @@ dependencies = [
  "db",
  "directories",
  "eframe",
+ "goals_lib",
  "rand",
  "reqwest",
  "rusqlite",
