@@ -21,8 +21,13 @@ fn main() -> eframe::Result {
     let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
 
     let args: Vec<String> = env::args().collect();
-    let key: String = args[1].clone();
-    let steam_id: String = args[2].clone();
+    let steam_id: String = args[1].clone();
+
+    let key_var = env::var("STEAM_API_KEY");
+    if key_var.is_err() {
+        panic!("You need to set the environment variable STEAM_API_KEY with your API key")
+    }
+    let key = key_var.unwrap();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1200.0, 1200.0]),

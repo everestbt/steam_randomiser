@@ -1,4 +1,5 @@
 mod add_display_name_and_description_and_last_played_to_achievement_store;
+mod drop_key_store;
 
 use clap::Parser;
 
@@ -35,6 +36,15 @@ async fn main() -> Result<(), reqwest::Error> {
                 else {
                     println!("Success");
                 }
+            }
+        },
+        "drop_key_store" => {
+            let result = drop_key_store::run_migration().await;
+            if result.is_err() {
+                println!("{error}", error = result.err().unwrap());
+            }
+            else {
+                println!("Success");
             }
         },
         &_ => println!("Enter a migration to run")

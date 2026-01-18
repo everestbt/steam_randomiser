@@ -1,52 +1,48 @@
 use api::{achievement_fetch::{self, GameAchievement}, game_fetch};
-use db::{key_store, steam_id_store, achievement_store, excluded_achievement_store, request_store, game_completion_cache};
+use db::{steam_id_store, achievement_store, excluded_achievement_store, request_store, game_completion_cache};
 use goals_lib::{goals};
 
-use std::{collections::HashMap};
+use std::{collections::HashMap, env};
 use clap::Parser;
 
 // Command line arguments
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Your Steam API key
-    #[arg(short, long)]
-    key: Option<String>,
-
     /// Your Steam ID
-    #[arg(short, long)]
+    #[arg(long)]
     id: Option<String>,
 
     /// Return a random achievement
-    #[arg(short, long)]
+    #[arg(long)]
     random_achievement: bool,
 
     /// Return a random game with achievements remaining on it
-    #[arg(short, long)]
+    #[arg(long)]
     random_game: bool,
 
     /// Return a list of the current goals
-    #[arg(short, long)]
+    #[arg(long)]
     goals: bool,
 
     /// Exclude an achievement by its id in the goals list
-    #[arg(short, long)]
+    #[arg(long)]
     exclude_achievement: Option<i32>,
 
     /// Return a list of completed games
-    #[arg(short, long)]
+    #[arg(long)]
     completed_games: bool,
 
     /// Return a list of games that are closest to being done
-    #[arg(short, long)]
+    #[arg(long)]
     game_completion_list: bool,
 
     /// Game name used for certain commands
-    #[arg(short, long)]
+    #[arg(long)]
     game_name: Option<String>,
 
     /// Purge specific data tables
-    #[arg(short, long)]
+    #[arg(long)]
     purge: Option<String>,
 
     /// Show debug level information
@@ -58,20 +54,16 @@ struct Args {
 async fn main() -> Result<(), reqwest::Error> {
     let args = Args::parse();
 
-    let key: String;
-    if args.key.is_some() {
-        key = args.key.unwrap();
-        key_store::save_key(&key).expect("Failed to save the key");
-        println!("Saved your key, no need to use --key each time now. You can replace it by using --key again.")
+    let key_var = env::var("STEAM_API_KEY");
+    if key_var.is_err() {
+        panic!("You need to set the environment variable STEAM_API_KEY with your API key")
     }
-    else {
-        key = key_store::get_key().expect("Failed to load a key, use --key first");
-    }
+    let key = key_var.unwrap();
 
     let steam_id: String;
     if args.id.is_some() {
         steam_id = args.id.unwrap();
-        steam_id_store::save_id(&steam_id).expect("Failed to save the key");
+        steam_id_store::save_id(&steam_id).expect("Failed to save the id");
         println!("Saved your steam id, no need to use --id each time now. You can replace it by using --id again.")
     }
     else {
