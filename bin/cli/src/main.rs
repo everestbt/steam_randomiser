@@ -2,7 +2,7 @@ use api::{achievement_fetch::{self, GameAchievement}, game_fetch};
 use db::{steam_id_store, achievement_store, excluded_achievement_store, request_store, game_completion_cache};
 use goals_lib::{goals};
 
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, io};
 use clap::Parser;
 
 // Command line arguments
@@ -37,7 +37,7 @@ struct Args {
     #[arg(long)]
     game_completion_list: bool,
 
-    /// Game name used for certain commands
+    /// Game name used to filter goals
     #[arg(long)]
     game_name: Option<String>,
 
@@ -71,31 +71,7 @@ async fn main() -> Result<(), reqwest::Error> {
     }
 
     if args.random_achievement {
-        let game_name: String = args.game_name.expect("Must pass in a game-name");
-        println!("Searching for {:#?}", game_name);
-        // Fetch games
-        let owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
-
-        // Search for the game title
-        let game_name_lowercase: String = game_name.to_lowercase();
-        let filter_to_game: Vec<&game_fetch::Game> = owned_games
-            .iter()
-            .filter(|a| a.name.to_lowercase().contains(&game_name_lowercase))
-            .collect();
-
-        if filter_to_game.is_empty() {
-            println!("Failed to find that game");
-        } else if filter_to_game.len() > 1 {
-            println!("Result is ambiguous");
-            for ele in filter_to_game.iter() {
-                println!("{:#?}!", ele.name);
-            }
-            println!("TAKING THE FIRST ONE:");
-        }
-
-        let game = filter_to_game.first().unwrap();
-
-        println!("Found the game {:#?}!", game.name);
+        let game = request_game_name(&key, &steam_id).await.expect("No game found for search");
 
         let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&key, &steam_id, &game).await;
         if random_achievement.is_none() {
@@ -279,3 +255,46 @@ async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &Vec<
         }
     }
 }   
+
+async fn request_game_name(key : &str, steam_id : &str) -> Option<game_fetch::Game> {
+    let mut game_name= String::new();
+    println!("Please enter the game name:");  
+  
+    io::stdin()  
+        .read_line(&mut game_name) 
+        .expect("Failed to read line");
+	
+    // Fetch games and search for it
+    let game_name_lowercase: String = game_name.trim().to_lowercase();
+    let game_list: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await
+        .iter()
+        .filter(|a| a.name.to_lowercase().contains(&game_name_lowercase))
+        .cloned()
+        .collect();
+
+    if game_list.is_empty() {
+        println!("Failed to find that game");
+        return Option::None;
+    } 
+    else if game_list.len() > 1 {
+        println!("There are a few games to choose from:");
+        let mut i = 0;
+        for ele in game_list.iter() {
+            println!("{game_name} [{num}]", game_name = ele.name, num = i);
+            i += 1;
+        }
+        println!("Enter the number of which one you would like to use");
+        let mut choice= String::new();
+        io::stdin()  
+            .read_line(&mut choice) 
+            .expect("Failed to read line");
+        let index: i32 = choice.trim().parse().expect("It needs to be an integer");
+        if index < 0 || index >= i {
+            panic!("Enter a value that is included in the index")
+        }
+        return Option::Some(game_list.get(index as usize).unwrap().clone())
+    }
+    else {
+        return Option::Some(game_list.first().unwrap().clone());
+    }
+}
