@@ -1,15 +1,18 @@
-@steamKey=<STEAM KEY>
-@steamId=<STEAM ID>
-@appId=671440
-
 ### Owned Games call
+# @prompt steamKey
+# @prompt steamId
 GET https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?format=json&include_appinfo=true&include_played_free_games=true&key={{steamKey}}&steamid={{steamId}}
 Content-type: application/json
 
 ### Player Achievements call
+# @prompt steamKey
+# @prompt steamId
+# @prompt appId
 GET https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?key={{steamKey}}&appid={{appId}}&steamid={{steamId}}
 Content-type: application/json
 
 ### Games Achievements call
+# @prompt steamKey
+# @prompt appId
 GET https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key={{steamKey}}&appid={{appId}}
 Content-type: application/json
