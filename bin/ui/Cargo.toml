@@ -9,16 +9,8 @@ description = "The UI for steam random"
 api.workspace=true
 db.workspace = true
 goals_lib.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-reqwest.workspace = true
 tokio.workspace = true
-rand.workspace = true
 eframe.workspace = true
-clap.workspace = true
-rusqlite.workspace = true
-directories.workspace = true
-chrono.workspace = true
 
 [[bin]]
 path = "src/main.rs"
