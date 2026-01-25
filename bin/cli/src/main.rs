@@ -186,7 +186,7 @@ async fn main() -> Result<(), reqwest::Error> {
     else if args.completed_games {
         // Get full game list
         let games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
-        refresh_game_completion_cache(&key, &steam_id, &games).await;
+        goals::refresh_game_completion_cache(&key, &steam_id, &games).await;
         let completed_games: Vec<game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion_above_or_equal(100).expect("Failed to load completed games");
         for g in completed_games {
             let game = games.iter().find(|game| game.appid == g.app_id).unwrap();
@@ -196,7 +196,7 @@ async fn main() -> Result<(), reqwest::Error> {
     else if args.game_completion_list {
         // Get full game list
         let games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
-        refresh_game_completion_cache(&key, &steam_id, &games).await;
+        goals::refresh_game_completion_cache(&key, &steam_id, &games).await;
         let progressed_games: Vec<game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion_above_or_equal(1).expect("Failed to load completed games");
         for g in progressed_games {
             if g.complete != 100 {
@@ -217,44 +217,6 @@ async fn main() -> Result<(), reqwest::Error> {
     }
     Ok(())
 }
-
-async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &Vec<game_fetch::Game>) {
-    // Get cached completed games
-    let completed_games_cache: HashMap<i32, game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion().expect("Failed to load completed games").iter().map(|n| (n.app_id, n.clone())).collect();
-    for game in games {
-        // Skip the game if no playtime
-        if game.playtime_forever == 0 {
-            continue;
-        }
-        // Check if cached and not played since
-        let cache_check = completed_games_cache.get(&game.appid);
-        if cache_check.is_some_and(|c| c.last_played == game.last_played) {
-            continue;
-        }
-        // Check for any excluded achievements
-        let excluded_achievements: Vec<String> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements").iter().map(|a| a.achievement_name.clone()).collect();
-        // Get the achievements completed for that game
-        let player_achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;
-        if player_achievements.is_none() {
-            // Game has no achievements, save it as completed
-            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, false).expect("Failed to save game completion");
-            continue;
-        }
-        let p = player_achievements.unwrap();
-        let unachieved = p.achievements.iter()
-            .filter(|a| !excluded_achievements.contains(&a.apiname))
-            .filter(|a| a.achieved==0)
-            .count();
-        // Display if it is complete and save the current result
-        if unachieved == 0 {
-            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, true).expect("Failed to save game completion");
-        }
-        else {
-            let progress : i8 = (100.0 * (1.0 -( (unachieved as f32) / (p.achievements.len() as f32)))) as i8;
-            game_completion_cache::save_game_completion(&game.appid, progress, game.last_played, true).expect("Failed to save game completion");
-        }
-    }
-}   
 
 async fn request_game_name(key : &str, steam_id : &str) -> Option<game_fetch::Game> {
     let mut game_name= String::new();
