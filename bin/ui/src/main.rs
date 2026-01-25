@@ -25,7 +25,6 @@ fn main() -> eframe::Result {
     };
 
     let mut game_list: Vec<game_fetch::Game> = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
-    game_list.sort_by(|a,b| a.name.cmp(&b.name));
     let mut selected_game_app_id: HashSet<i32> = HashSet::new();
     let mut goals: Vec<achievement_store::Achievement> = get_goals();
 
@@ -37,8 +36,13 @@ fn main() -> eframe::Result {
         .map(|n| (n.app_id, n.clone()))
         .collect();
 
+    game_list.sort_by(|a,b| completed_games_cache.get(&b.appid).map(|f| f.complete).unwrap_or(0).cmp(
+        &completed_games_cache.get(&a.appid).map(|f| f.complete).unwrap_or(0)
+    ));    
+
     // Filters
     let mut filter_completed_game : bool = false;
+    let mut filter_in_progress : bool = false;
     let mut filter_has_achievements : bool = true;
     let mut filter_perfect : bool = false;
     let mut filter_search : String = String::new();
@@ -114,6 +118,7 @@ fn main() -> eframe::Result {
                 // Display a list of every owned game that can then be selected/deselected
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                        ui.checkbox(&mut filter_in_progress, "In Progress");
                         ui.checkbox(&mut filter_completed_game, "Completed");
                         ui.checkbox(&mut filter_perfect, "Perfected");
                         ui.checkbox(&mut filter_has_achievements, "Has achievements");
@@ -131,6 +136,11 @@ fn main() -> eframe::Result {
                         }
                         for game in &mut game_list {
                             // check all filters
+                            if filter_in_progress {
+                                if completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0) == 100 {
+                                    continue;
+                                }
+                            }
                             if filter_completed_game {
                                 if completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0) != 100 {
                                     continue;
