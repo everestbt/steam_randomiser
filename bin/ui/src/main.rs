@@ -37,6 +37,7 @@ fn main() -> eframe::Result {
     // Filters
     let mut filter_completed_game : bool = false;
     let mut filter_has_achievements : bool = true;
+    let mut filter_perfect : bool = false;
 
     eframe::run_simple_native("Steam randomiser", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -107,11 +108,17 @@ fn main() -> eframe::Result {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                         ui.checkbox(&mut filter_completed_game, "Completed");
+                        ui.checkbox(&mut filter_perfect, "Perfected");
                         ui.checkbox(&mut filter_has_achievements, "Has achievements");
                         for game in &mut game_list {
                             // check all filters
                             if filter_completed_game {
                                 if completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0) != 100 {
+                                    continue;
+                                }
+                            }
+                            if filter_perfect {
+                                if !completed_games_cache.get(&game.appid).map(|c| c.perfect).unwrap_or(false) {
                                     continue;
                                 }
                             }

@@ -61,27 +61,41 @@ pub async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &
         if cache_check.is_some_and(|c| c.last_played == game.last_played) {
             continue;
         }
-        // Check for any excluded achievements
-        let excluded_achievements: Vec<String> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid).expect("Failed to load excluded achievements").iter().map(|a| a.achievement_name.clone()).collect();
         // Get the achievements completed for that game
         let player_achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;
         if player_achievements.is_none() {
             // Game has no achievements, save it as completed
-            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, false).expect("Failed to save game completion");
+            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, false, true).expect("Failed to save game completion");
             continue;
         }
         let p = player_achievements.unwrap();
-        let unachieved = p.achievements.iter()
-            .filter(|a| !excluded_achievements.contains(&a.apiname))
+        let unachieved: Vec<&achievement_fetch::PlayerAchievement> = p.achievements.iter()
             .filter(|a| a.achieved==0)
-            .count();
+            .collect();
         // Display if it is complete and save the current result
-        if unachieved == 0 {
-            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, true).expect("Failed to save game completion");
+        if unachieved.len() == 0 {
+            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, true, true)
+                .expect("Failed to save game completion");
         }
         else {
-            let progress : i8 = (100.0 * (1.0 -( (unachieved as f32) / (p.achievements.len() as f32)))) as i8;
-            game_completion_cache::save_game_completion(&game.appid, progress, game.last_played, true).expect("Failed to save game completion");
+            // Check for any excluded achievements
+            let excluded_achievements: Vec<String> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid)
+                .expect("Failed to load excluded achievements")
+                .iter()
+                .map(|a| a.achievement_name.clone())
+                .collect();
+            let unachieved_with_excluded_count = unachieved.iter()
+                .filter(|a| !excluded_achievements.contains(&a.apiname))
+                .count();
+            if unachieved_with_excluded_count == 0 {
+                game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, true, false)
+                    .expect("Failed to save game completion");
+            }
+            else {
+                let progress : i8 = (100.0 * (1.0 -( (unachieved_with_excluded_count as f32) / (p.achievements.len() as f32)))) as i8;
+                game_completion_cache::save_game_completion(&game.appid, progress, game.last_played, true, false)
+                    .expect("Failed to save game completion");
+            }
         }
     }
 }   

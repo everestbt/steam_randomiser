@@ -8,19 +8,21 @@ pub struct GameCompletion {
     pub complete: i8,
     pub last_played: i64,
     pub has_achievements: bool,
+    pub perfect: bool,
 }
 
 pub fn get_game_completion() -> Result<Vec<GameCompletion>> {
     let conn: Connection = db_manager::get_connection();
     create_table(&conn)?;
 
-    let mut stmt = conn.prepare("SELECT app_id, complete, last_played, has_achievements FROM steam_game_completion")?;
+    let mut stmt = conn.prepare("SELECT app_id, complete, last_played, has_achievements, perfect FROM steam_game_completion")?;
     let achieve_iter = stmt.query_map([], |row| {
         Ok(GameCompletion {
             app_id: row.get(0)?,
             complete: row.get(1)?,
             last_played: row.get(2)?,
             has_achievements: row.get(3)?,
+            perfect: row.get(4)?,
         })
     })?;
 
@@ -35,13 +37,14 @@ pub fn get_game_completion_above_or_equal(completed: i8) -> Result<Vec<GameCompl
     let conn: Connection = db_manager::get_connection();
     create_table(&conn)?;
 
-    let mut stmt = conn.prepare("SELECT app_id, complete, last_played, has_achievements FROM steam_game_completion WHERE complete >= ?1 AND has_achievements = true ORDER BY complete DESC")?;
+    let mut stmt = conn.prepare("SELECT app_id, complete, last_played, has_achievements, perfect FROM steam_game_completion WHERE complete >= ?1 AND has_achievements = true ORDER BY complete DESC")?;
     let achieve_iter = stmt.query_map([completed], |row| {
         Ok(GameCompletion {
             app_id: row.get(0)?,
             complete: row.get(1)?,
             last_played: row.get(2)?,
             has_achievements: row.get(3)?,
+            perfect: row.get(4)?,
         })
     })?;
 
@@ -52,15 +55,15 @@ pub fn get_game_completion_above_or_equal(completed: i8) -> Result<Vec<GameCompl
     Ok(vec)
 }
 
-pub fn save_game_completion(app_id: &i32, complete: i8, last_played: i64, has_achievements: bool) -> Result<()> {
+pub fn save_game_completion(app_id: &i32, complete: i8, last_played: i64, has_achievements: bool, perfect: bool) -> Result<()> {
     // Connect to SQLite database (creates the file if it doesn't exist)
     let conn: Connection = db_manager::get_connection();
     create_table(&conn)?;
     
     // Add in the achievement
     conn.execute(
-        "INSERT INTO steam_game_completion (app_id, complete, last_played, has_achievements) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(app_id) DO UPDATE SET complete=?5, last_played=?6, has_achievements=?7",
-        params![app_id, complete, last_played, has_achievements, complete, last_played, has_achievements],
+        "INSERT INTO steam_game_completion (app_id, complete, last_played, has_achievements, perfect) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(app_id) DO UPDATE SET complete=?6, last_played=?7, has_achievements=?8, perfect=?9",
+        params![app_id, complete, last_played, has_achievements, perfect, complete, last_played, has_achievements, perfect],
     )?;
 
     Ok(())
@@ -84,7 +87,8 @@ fn create_table(conn: &Connection) -> Result<()> {
             app_id INTEGER PRIMARY KEY,
             complete INTEGER NOT NULL,
             last_played INTEGER NOT NULL,
-            has_achievements BOOL NOT NULL 
+            has_achievements BOOL NOT NULL,
+            perfect BOOL NOT NULL
         )",
         [], // No parameters needed
     )?;
