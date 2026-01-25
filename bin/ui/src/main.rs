@@ -34,6 +34,9 @@ fn main() -> eframe::Result {
         .map(|n| (n.app_id, n.clone()))
         .collect();
 
+    // Filters
+    let mut filter_completed_game : bool = false;
+
     eframe::run_simple_native("Steam randomiser", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Welcome to Steam Randomiser");
@@ -102,7 +105,15 @@ fn main() -> eframe::Result {
                 // Display a list of every owned game that can then be selected/deselected
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                        ui.checkbox(&mut filter_completed_game, "Completed");
                         for game in &mut game_list {
+                            // check all filters
+                            if filter_completed_game {
+                                if completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0) != 100 {
+                                    continue;
+                                }
+                            }
+
                             ui.add_space(5.0);
                             // Add a clickable game using egui::Label::sense()
                             let progress = completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0).to_string();
