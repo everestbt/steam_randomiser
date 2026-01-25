@@ -5,6 +5,9 @@ use goals_lib::goals;
 use eframe::egui;
 use std::{env, collections::HashSet, collections::HashMap};
 
+#[derive(PartialEq)]
+enum Sorting { Alphabetical, Progress }
+
 fn main() -> eframe::Result {
     let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
 
@@ -39,6 +42,9 @@ fn main() -> eframe::Result {
     let mut filter_has_achievements : bool = true;
     let mut filter_perfect : bool = false;
     let mut filter_search : String = String::new();
+
+    // Sorting
+    let mut sorting = Sorting::Progress;
 
     eframe::run_simple_native("Steam randomiser", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -112,6 +118,17 @@ fn main() -> eframe::Result {
                         ui.checkbox(&mut filter_perfect, "Perfected");
                         ui.checkbox(&mut filter_has_achievements, "Has achievements");
                         ui.add(egui::TextEdit::singleline(&mut filter_search));
+
+                        if ui.add(egui::RadioButton::new(sorting == Sorting::Alphabetical, "Alphabetical")).clicked() {
+                            sorting = Sorting::Alphabetical;
+                            game_list.sort_by(|a,b| a.name.cmp(&b.name));
+                        }
+                        if ui.add(egui::RadioButton::new(sorting == Sorting::Progress, "Progress")).clicked() {
+                            sorting = Sorting::Progress;
+                            game_list.sort_by(|a,b| completed_games_cache.get(&b.appid).map(|f| f.complete).unwrap_or(0).cmp(
+                                &completed_games_cache.get(&a.appid).map(|f| f.complete).unwrap_or(0)
+                            ));
+                        }
                         for game in &mut game_list {
                             // check all filters
                             if filter_completed_game {
