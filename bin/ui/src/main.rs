@@ -33,7 +33,10 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
-    let mut game_list: Vec<GameListItem> = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id)).iter().map(|g| GameListItem { game: g.clone(), selected: false }).collect();
+    let mut game_list: Vec<GameListItem> = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id))
+        .iter()
+        .map(|g| GameListItem { game: g.clone(), selected: false })
+        .collect();
     game_list.sort_by(|a,b| a.game.name.cmp(&b.game.name));
 
     let mut goals: Vec<achievement_store::Achievement> = get_goals();
@@ -66,8 +69,14 @@ fn main() -> eframe::Result {
                 // List out goals for each selected items     
                 ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                     ui.heading("Selected");
-                    let selected = game_list.iter().filter(|a| a.selected);
-                    for s in selected {
+                    // Button to randomly select a game
+                    if ui.add(egui::Button::new("Random game!")).clicked() {
+                        let index = (rand::random::<f32>() * game_list.len() as f32).floor() as usize;
+                        if !game_list[index].selected {
+                            game_list[index].select();
+                        }
+                    }
+                    for s in game_list.iter().filter(|a| a.selected) {
                         ui.add(egui::Label::new(s.game.name.clone()));
                         ui.add_space(5.0);
                         // Goals
@@ -85,7 +94,7 @@ fn main() -> eframe::Result {
                             ui.label(result);
                             ui.add_space(5.0);
                         }
-                        if ui.add(egui::Button::new("Click me")).clicked() {
+                        if ui.add(egui::Button::new("Random Achievement")).clicked() {
                             let random_achievement = runtime.block_on(goals::get_random_achievement_for_game(&key, &steam_id, &s.game));
                             if random_achievement.is_some() {
                                 let a = random_achievement.unwrap();
@@ -98,7 +107,7 @@ fn main() -> eframe::Result {
                 });
                 // Display a list of every owned game that can then be selected/deselected
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
+                    ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                         for game in &mut game_list {
                             ui.add_space(5.0);
                             // Add a clickable game using egui::Label::sense()
@@ -112,6 +121,7 @@ fn main() -> eframe::Result {
                         }
                     });
                 });
+                
             });   
         });
     })

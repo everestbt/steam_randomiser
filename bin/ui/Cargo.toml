@@ -11,6 +11,7 @@ db.workspace = true
 goals_lib.workspace = true
 tokio.workspace = true
 eframe.workspace = true
+rand.workspace = true
 
 [[bin]]
 path = "src/main.rs"

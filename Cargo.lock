@@ -3821,6 +3821,7 @@ dependencies = [
  "db",
  "eframe",
  "goals_lib",
+ "rand",
  "tokio",
 ]
 
