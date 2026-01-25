@@ -71,7 +71,7 @@ fn main() -> eframe::Result {
                         ui.add(egui::Label::new(s.name.clone()));
                         ui.add_space(5.0);
                         let progress = completed_games_cache.get(&s.appid).map(|c| c.complete).unwrap_or(0).to_string();
-                        ui.add(egui::Label::new(format!("Progress {}", progress)));
+                        ui.add(egui::Label::new(format!("Progress [{}%]", progress)));
                         ui.add_space(5.0);
                         // Goals
                         ui.label("Goals:");
@@ -105,8 +105,9 @@ fn main() -> eframe::Result {
                         for game in &mut game_list {
                             ui.add_space(5.0);
                             // Add a clickable game using egui::Label::sense()
+                            let progress = completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0).to_string();
                             if ui
-                                .add(egui::Label::new(&game.name)
+                                .add(egui::Label::new(format!("{name} : [{progress}%]", name = &game.name, progress = progress))
                                 .sense(egui::Sense::click()))
                                 .clicked() {
                                     if !selected_game_app_id.contains(&game.appid) {
