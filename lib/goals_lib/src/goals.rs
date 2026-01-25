@@ -46,7 +46,11 @@ pub async fn get_random_achievement_for_game(key : &str, steam_id : &str, game: 
 
 pub async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &Vec<game_fetch::Game>) {
     // Get cached completed games
-    let completed_games_cache: HashMap<i32, game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion().expect("Failed to load completed games").iter().map(|n| (n.app_id, n.clone())).collect();
+    let completed_games_cache: HashMap<i32, game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion()
+        .expect("Failed to load completed games")
+        .iter()
+        .map(|n| (n.app_id, n.clone()))
+        .collect();
     for game in games {
         // Skip the game if no playtime
         if game.playtime_forever == 0 {
