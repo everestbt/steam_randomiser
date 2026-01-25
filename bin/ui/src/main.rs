@@ -14,10 +14,10 @@ fn main() -> eframe::Result {
     }
     let key = key_var.unwrap();
 
-    let steam_id = steam_id_store::get_id().expect("Failed to load a key, use the cli and supply a --id first");
+    let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1200.0, 1200.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([2000.0, 1200.0]),
         ..Default::default()
     };
 
@@ -38,6 +38,7 @@ fn main() -> eframe::Result {
     let mut filter_completed_game : bool = false;
     let mut filter_has_achievements : bool = true;
     let mut filter_perfect : bool = false;
+    let mut filter_search : String = String::new();
 
     eframe::run_simple_native("Steam randomiser", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -110,6 +111,7 @@ fn main() -> eframe::Result {
                         ui.checkbox(&mut filter_completed_game, "Completed");
                         ui.checkbox(&mut filter_perfect, "Perfected");
                         ui.checkbox(&mut filter_has_achievements, "Has achievements");
+                        ui.add(egui::TextEdit::singleline(&mut filter_search));
                         for game in &mut game_list {
                             // check all filters
                             if filter_completed_game {
@@ -124,6 +126,11 @@ fn main() -> eframe::Result {
                             }
                             if filter_has_achievements {
                                 if !completed_games_cache.get(&game.appid).map(|c| c.has_achievements).unwrap_or(true) {
+                                    continue;
+                                }
+                            }
+                            if filter_search != "" {
+                                if !game.name.to_lowercase().contains(&filter_search.trim().to_lowercase()) {
                                     continue;
                                 }
                             }
