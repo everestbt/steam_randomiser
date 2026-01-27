@@ -1,5 +1,5 @@
 use api::game_fetch;
-use db::{achievement_store, steam_id_store, game_completion_cache};
+use db::{achievement_store, steam_id_store, game_completion_cache, excluded_achievement_store};
 use goals_lib::goals;
 
 use eframe::egui;
@@ -40,6 +40,9 @@ fn main() -> eframe::Result {
         &completed_games_cache.get(&a.appid).map(|f| f.complete).unwrap_or(0)
     ));    
 
+    // Actions
+    let mut excluding_mode : bool = false;
+
     // Filters
     let mut filter_completed_game : bool = false;
     let mut filter_in_progress : bool = false;
@@ -50,6 +53,9 @@ fn main() -> eframe::Result {
     // Sorting
     let mut sorting = Sorting::Progress;
 
+    // Refresh
+    let mut refresh : bool = false;
+
     eframe::run_simple_native("Steam randomiser", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Welcome to Steam Randomiser");
@@ -58,6 +64,9 @@ fn main() -> eframe::Result {
                 ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                     // List out all goals
                     ui.heading("Goals");
+                    ui.add_space(5.0);
+                    ui.checkbox(&mut excluding_mode, "Allow excluding");
+                    ui.add_space(5.0);
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             for g in &goals {
@@ -69,7 +78,16 @@ fn main() -> eframe::Result {
                                 else {
                                     result = format!("{} : {}", game_name, g.display_name.clone());
                                 }
-                                ui.label(result);
+                                if ui
+                                    .add(egui::Label::new(result)
+                                    .sense(egui::Sense::click()))
+                                    .clicked() {
+                                    if excluding_mode {
+                                        achievement_store::delete_achievement(&g.id).expect("Failed to delete achievement");
+                                        excluded_achievement_store::save_excluded_achievement(&g.achievement_name, &g.app_id).expect("Failed to save excluded achievement");
+                                        refresh = true;
+                                    }
+                                };
                                 ui.add_space(5.0);
                             }
                         });
@@ -109,7 +127,7 @@ fn main() -> eframe::Result {
                             if random_achievement.is_some() {
                                 let a = random_achievement.unwrap();
                                 achievement_store::save_achievement(&a.name, &a.display_name, &a.description, &s.appid, &s.last_played).expect("Failed to save achievement");
-                                goals = get_goals();
+                                refresh = true;
                             }
                         }
                         ui.add_space(5.0);
@@ -183,6 +201,10 @@ fn main() -> eframe::Result {
                 
             });   
         });
+        if refresh {
+            goals = get_goals();
+            refresh = false;
+        }
     })
 }
 
