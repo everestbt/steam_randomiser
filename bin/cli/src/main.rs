@@ -1,4 +1,4 @@
-use api::{achievement_fetch::{self, GameAchievement}, game_fetch};
+use api::{achievement_fetch::{GameAchievement}, game_fetch};
 use db::{steam_id_store, achievement_store, excluded_achievement_store, request_store, game_completion_cache};
 use goals_lib::{goals};
 
@@ -128,51 +128,21 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     }
     else if args.goals {
+        let owned_games: HashMap<i32, game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await.iter().map(|n| (n.appid, n.clone())).collect();
+        // Print all completed achievements!
+        let completed_achievement = goals::get_and_sync_completed_achievements(&key, &steam_id).await;
+        for ca in completed_achievement {
+            println!("Well done! You completed {game} : {name}", game = owned_games.get(&ca.app_id).expect("Achievement completed for unowned game?!?").name, name = ca.display_name);
+        }
         let mut achievements: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
         achievements.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
-        let mut app_player_achievement_map: HashMap<i32, achievement_fetch::PlayerAchievements> = HashMap::new();
-        let owned_games: HashMap<i32, game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await.iter().map(|n| (n.appid, n.clone())).collect();
+        
         for a in achievements {
-            // Get the game out of the map
-            let game = owned_games.get(&a.app_id).unwrap();
-            // If a game-name is not contained, then filter it out
-            if args.game_name.clone().is_some_and(|x| !game.name.to_lowercase().contains(&x.to_lowercase())) {
-                continue;
+            if a.description.is_none() {
+                println!("{game} : {name} [{id}]", name = a.display_name, game = owned_games.get(&a.app_id).expect("Achievement completed for unowned game?!?").name, id = a.id);
             }
-            // Check if the last_played has changed
-            if game.last_played == a.last_played {
-                // Not changed so just print the value
-                if a.description.is_none() {
-                    println!("{game} : {name} [{id}]", name = a.display_name, game = game.name, id = a.id);
-                }
-                else{
-                    println!("{game} : {name} - {description} [{id}]", name = a.display_name, game = game.name, description = a.description.clone().unwrap(), id = a.id);
-                }
-            }
-            else {
-                // Check if the app is already loaded (PlayerAchievements)
-                let player_achievements = app_player_achievement_map.get(&a.app_id);
-                let loaded_player: &achievement_fetch::PlayerAchievements;
-                if player_achievements.is_none() {
-                    let player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await.expect("Somehow a game with no achievements has ended up with one?!?");
-                    app_player_achievement_map.insert(a.app_id, player);
-                    loaded_player = app_player_achievement_map.get(&a.app_id).unwrap();
-                }
-                else {
-                    loaded_player = player_achievements.unwrap();
-                }
-                // Remove any that are already completed
-                if loaded_player.achievements.iter().find(|x| x.apiname==a.achievement_name).unwrap().achieved == 1 {
-                    achievement_store::delete_achievement(&a.id).expect("Failed to delete achievement");
-                    println!("Well done! You completed {game} : {name}", name = a.display_name, game = game.name);
-                    continue;
-                } 
-                if a.description.is_none() {
-                    println!("{game} : {name} [{id}]", name = a.display_name, game = game.name, id = a.id);
-                }
-                else{
-                    println!("{game} : {name} - {description} [{id}]", name = a.display_name, game = game.name, description = a.description.clone().unwrap(), id = a.id);
-                }
+            else{
+                println!("{game} : {name} - {description} [{id}]", name = a.display_name, game = owned_games.get(&a.app_id).expect("Achievement completed for unowned game?!?").name, description = a.description.clone().unwrap(), id = a.id);
             }
         }
     }

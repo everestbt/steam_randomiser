@@ -4,6 +4,38 @@ use db::{achievement_store, excluded_achievement_store, game_completion_cache};
 use std::{collections::HashMap};
 use rand::prelude::*;
 
+pub async fn get_and_sync_completed_achievements(key : &str, steam_id : &str) -> Vec<achievement_store::Achievement> {
+    let mut achievements: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
+    achievements.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
+    let mut app_player_achievement_map: HashMap<i32, achievement_fetch::PlayerAchievements> = HashMap::new();
+    let owned_games: HashMap<i32, game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await.iter().map(|n| (n.appid, n.clone())).collect();
+    let mut achievement_completed: Vec<achievement_store::Achievement> = Vec::new();
+    for a in achievements {
+        // Get the game out of the map
+        let game = owned_games.get(&a.app_id).unwrap();
+        // Check if the last_played has changed
+        if game.last_played != a.last_played {
+            // Check if the app is already loaded (PlayerAchievements)
+            let player_achievements = app_player_achievement_map.get(&a.app_id);
+            let loaded_player: &achievement_fetch::PlayerAchievements;
+            if player_achievements.is_none() {
+                let player = achievement_fetch::get_player_achievements(&key, &steam_id, &a.app_id).await.expect("Somehow a game with no achievements has ended up with one?!?");
+                app_player_achievement_map.insert(a.app_id, player);
+                loaded_player = app_player_achievement_map.get(&a.app_id).unwrap();
+            }
+            else {
+                loaded_player = player_achievements.unwrap();
+            }
+            // Remove any that are already completed
+            if loaded_player.achievements.iter().find(|x| x.apiname==a.achievement_name).unwrap().achieved == 1 {
+                achievement_store::delete_achievement(&a.id).expect("Failed to delete achievement");
+                achievement_completed.push(a);
+            } 
+        }
+    }
+    return achievement_completed;
+}
+
 pub async fn get_random_achievement_for_game(key : &str, steam_id : &str, game: &game_fetch::Game) -> Option<GameAchievement> {
     // Get the achievements for a specific game
         let achievements = achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid).await;

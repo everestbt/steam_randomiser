@@ -24,8 +24,10 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
+    // Get game list and goals
     let mut game_list: Vec<game_fetch::Game> = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
     let mut selected_game_app_id: HashSet<i32> = HashSet::new();
+    runtime.block_on(goals::get_and_sync_completed_achievements(&key, &steam_id));
     let mut goals: Vec<achievement_store::Achievement> = get_goals();
 
     // Refresh the completed cache and fetch
