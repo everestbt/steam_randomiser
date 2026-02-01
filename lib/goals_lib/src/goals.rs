@@ -30,7 +30,11 @@ pub async fn get_and_sync_completed_achievements(key : &str, steam_id : &str) ->
             if loaded_player.achievements.iter().find(|x| x.apiname==a.achievement_name).unwrap().achieved == 1 {
                 achievement_store::delete_achievement(&a.id).expect("Failed to delete achievement");
                 achievement_completed.push(a);
-            } 
+            }
+            // Update last_played to avoid checking again
+            else {
+                achievement_store::update_last_played(&a.id, &game.last_played).expect("Failed to update the last played")
+            }
         }
     }
     return achievement_completed;

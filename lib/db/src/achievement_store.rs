@@ -90,6 +90,18 @@ pub fn save_achievement(achievement_name: &String, display_name: &String, descri
     Ok(())
 }
 
+pub fn update_last_played(id: &i32, last_played: &i64) -> Result<()> {
+    let conn: Connection = db_manager::get_connection();
+    create_table(&conn)?;
+    
+    conn.execute(
+        "UPDATE steam_achievements_v_2 SET last_played = ?1 WHERE id = ?2 LIMIT 1",
+        params![last_played, id],
+    )?;
+
+    Ok(())
+}
+
 pub fn delete_achievement(id: &i32) -> Result<()> {
     // Connect to SQLite database (creates the file if it doesn't exist)
     let conn: Connection = db_manager::get_connection();
