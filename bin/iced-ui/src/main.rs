@@ -1,9 +1,9 @@
 use iced::font;
-use iced::time::{Duration, hours, minutes};
 use iced::widget::{
     center_x, center_y, column, container, row, scrollable, slider, table, text, tooltip,
 };
-use iced::{Center, Element, Fill, Font, Right, Theme};
+use iced::{Center, Left, Element, Font, Theme};
+use db::achievement_store;
 
 pub fn main() -> iced::Result {
     color_eyre::install().expect("Failed to install color eyre");
@@ -13,7 +13,7 @@ pub fn main() -> iced::Result {
 }
 
 struct Table {
-    events: Vec<Event>,
+    events: Vec<Goal>,
     padding: (f32, f32),
     separator: (f32, f32),
 }
@@ -27,7 +27,7 @@ enum Message {
 impl Table {
     fn new() -> Self {
         Self {
-            events: Event::list(),
+            events: Goal::list(),
             padding: (10.0, 5.0),
             separator: (1.0, 1.0),
         }
@@ -50,42 +50,13 @@ impl Table {
             };
 
             let columns = [
-                table::column(bold("Name"), |event: &Event| text(&event.name)),
-                table::column(bold("Time"), |event: &Event| {
-                    let minutes = event.duration.as_secs() / 60;
-
-                    text!("{minutes} min").style(if minutes > 90 {
-                        text::warning
-                    } else {
-                        text::default
-                    })
-                })
-                .align_x(Right)
-                .align_y(Center),
-                table::column(bold("Price"), |event: &Event| {
-                    if event.price > 0.0 {
-                        text!("${:.2}", event.price).style(if event.price > 100.0 {
-                            text::warning
-                        } else {
-                            text::default
-                        })
-                    } else {
-                        text("Free").style(text::success).width(Fill).center()
-                    }
-                })
-                .align_x(Right)
-                .align_y(Center),
-                table::column(bold("Rating"), |event: &Event| {
-                    text!("{:.2}", event.rating).style(if event.rating > 4.7 {
-                        text::success
-                    } else if event.rating < 2.0 {
-                        text::danger
-                    } else {
-                        text::default
-                    })
-                })
-                .align_x(Right)
-                .align_y(Center),
+                table::column(bold("Game Name"), |event: &Goal| text(&event.game_name)),
+                table::column(bold("Achievement Name"), |event: &Goal| text(&event.achievement_name))
+                    .align_x(Left)
+                    .align_y(Center),
+                table::column(bold("Description"), |event: &Goal| text(&event.description))
+                    .align_x(Left)
+                    .align_y(Center),
             ];
 
             table(columns, &self.events)
@@ -139,106 +110,21 @@ impl Table {
     }
 }
 
-struct Event {
-    name: String,
-    duration: Duration,
-    price: f32,
-    rating: f32,
+struct Goal {
+    game_name: String,
+    achievement_name: String,
+    description: String,
 }
 
-impl Event {
+impl Goal {
     fn list() -> Vec<Self> {
-        vec![
-            Event {
-                name: "Get lost in a hacker bookstore".to_owned(),
-                duration: hours(2),
-                price: 0.0,
-                rating: 4.9,
-            },
-            Event {
-                name: "Buy vintage synth at Noisebridge flea market".to_owned(),
-                duration: hours(1),
-                price: 150.0,
-                rating: 4.8,
-            },
-            Event {
-                name: "Eat a questionable hot dog at 2AM".to_owned(),
-                duration: minutes(20),
-                price: 5.0,
-                rating: 1.7,
-            },
-            Event {
-                name: "Ride the MUNI for the story".to_owned(),
-                duration: minutes(60),
-                price: 3.0,
-                rating: 4.1,
-            },
-            Event {
-                name: "Scream into the void from Twin Peaks".to_owned(),
-                duration: minutes(40),
-                price: 0.0,
-                rating: 4.9,
-            },
-            Event {
-                name: "Buy overpriced coffee and feel things".to_owned(),
-                duration: minutes(25),
-                price: 6.5,
-                rating: 4.5,
-            },
-            Event {
-                name: "Attend an underground robot poetry slam".to_owned(),
-                duration: hours(1),
-                price: 12.0,
-                rating: 4.8,
-            },
-            Event {
-                name: "Browse cursed tech at a retro computer fair".to_owned(),
-                duration: hours(2),
-                price: 10.0,
-                rating: 4.7,
-            },
-            Event {
-                name: "Try to order at a secret ramen place with no sign".to_owned(),
-                duration: minutes(50),
-                price: 14.0,
-                rating: 4.6,
-            },
-            Event {
-                name: "Join a spontaneous rooftop drone rave".to_owned(),
-                duration: hours(3),
-                price: 0.0,
-                rating: 4.9,
-            },
-            Event {
-                name: "Sketch a stranger at Dolores Park".to_owned(),
-                duration: minutes(45),
-                price: 0.0,
-                rating: 4.4,
-            },
-            Event {
-                name: "Visit the Museum of Obsolete APIs".to_owned(),
-                duration: hours(1),
-                price: 9.99,
-                rating: 4.2,
-            },
-            Event {
-                name: "Chase the last working payphone".to_owned(),
-                duration: minutes(35),
-                price: 0.25,
-                rating: 4.0,
-            },
-            Event {
-                name: "Trade zines with a punk on BART".to_owned(),
-                duration: minutes(30),
-                price: 3.5,
-                rating: 4.7,
-            },
-            Event {
-                name: "Get a tattoo of the Git logo".to_owned(),
-                duration: hours(1),
-                price: 200.0,
-                rating: 4.6,
-            },
-        ]
+        let mut goals = achievement_store::get_achievements().expect("Failed to load achievements");
+        goals.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
+        goals.iter().map(|g| Goal {
+                game_name: g.app_id.to_string(),
+                achievement_name: g.display_name.clone(),
+                description: g.description.clone().unwrap_or("-".to_string()),
+            })
+            .collect()
     }
 }
