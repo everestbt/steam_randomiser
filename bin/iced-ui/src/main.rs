@@ -1,6 +1,6 @@
 use iced::font;
 use iced::widget::{
-    center_x, center_y, column, container, row, scrollable, slider, table, text, tooltip,
+    center_x, center_y, column, container, row, scrollable, slider, table, text, tooltip, button
 };
 use iced::{Center, Left, Element, Font, Theme};
 use db::{
@@ -13,13 +13,15 @@ use std::env;
 
 pub fn main() -> iced::Result {
     color_eyre::install().expect("Failed to install color eyre");
-    iced::application(Table::new, Table::update, Table::view)
+    iced::application(App::new, App::update, App::view)
         .theme(Theme::CatppuccinMocha)
         .run()
 }
 
-struct Table {
-    events: Vec<Goal>,
+struct App {
+    view: View,
+    games: Vec<Game>,
+    goals: Vec<Goal>,
     padding: (f32, f32),
     separator: (f32, f32),
 }
@@ -28,12 +30,23 @@ struct Table {
 enum Message {
     PaddingChanged(f32, f32),
     SeparatorChanged(f32, f32),
+    GamesView,
+    GoalsView,
 }
 
-impl Table {
+#[derive(Debug, Clone, Default)]
+enum View {
+    Goals,
+    #[default]
+    Games,
+}
+
+impl App {
     fn new() -> Self {
         Self {
-            events: Goal::list(),
+            view: View::default(),
+            games: Game::list(),
+            goals: Goal::list(),
             padding: (10.0, 5.0),
             separator: (1.0, 1.0),
         }
@@ -43,10 +56,20 @@ impl Table {
         match message {
             Message::PaddingChanged(x, y) => self.padding = (x, y),
             Message::SeparatorChanged(x, y) => self.separator = (x, y),
+            Message::GamesView => self.view = View::Games,
+            Message::GoalsView => self.view = View::Goals,
         }
     }
 
     fn view(&self) -> Element<'_, Message> {
+
+        let view_selector = {
+            row![
+                button("Games").on_press(Message::GamesView),
+                button("Goals").on_press(Message::GoalsView),
+            ]
+        };
+
         let table = {
             let bold = |header| {
                 text(header).font(Font {
@@ -54,22 +77,36 @@ impl Table {
                     ..Font::DEFAULT
                 })
             };
+            match self.view {
+                View::Goals => {
+                    let columns = [
+                        table::column(bold("Game Name"), |goal: &Goal| text(&goal.game_name)),
+                        table::column(bold("Achievement Name"), |goal: &Goal| text(&goal.achievement_name))
+                            .align_x(Left)
+                            .align_y(Center),
+                        table::column(bold("Description"), |goal: &Goal| text(&goal.description))
+                            .align_x(Left)
+                            .align_y(Center),
+                    ];
 
-            let columns = [
-                table::column(bold("Game Name"), |event: &Goal| text(&event.game_name)),
-                table::column(bold("Achievement Name"), |event: &Goal| text(&event.achievement_name))
-                    .align_x(Left)
-                    .align_y(Center),
-                table::column(bold("Description"), |event: &Goal| text(&event.description))
-                    .align_x(Left)
-                    .align_y(Center),
-            ];
+                    table(columns, &self.goals)
+                        .padding_x(self.padding.0)
+                        .padding_y(self.padding.1)
+                        .separator_x(self.separator.0)
+                        .separator_y(self.separator.1)
+                },
+                View::Games => {
+                    let columns = [
+                        table::column(bold("Game Name"), |game: &Game| text(&game.game_name)),
+                    ];
 
-            table(columns, &self.events)
-                .padding_x(self.padding.0)
-                .padding_y(self.padding.1)
-                .separator_x(self.separator.0)
-                .separator_y(self.separator.1)
+                    table(columns, &self.games)
+                        .padding_x(self.padding.0)
+                        .padding_y(self.padding.1)
+                        .separator_x(self.separator.0)
+                        .separator_y(self.separator.1)
+                }
+            }
         };
 
         let controls = {
@@ -109,6 +146,7 @@ impl Table {
         };
 
         column![
+            center_x(view_selector).padding(10),
             center_y(scrollable(center_x(table)).spacing(10)).padding(10),
             center_x(controls).padding(10).style(container::dark)
         ]
@@ -140,6 +178,23 @@ impl Goal {
                 achievement_name: g.display_name.clone(),
                 description: g.description.clone().unwrap_or("-".to_string()),
             })
+            .collect()
+    }
+}
+
+struct Game {
+    game_name: String,
+}
+
+impl Game {
+    fn list() -> Vec<Self> {
+        let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
+        let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
+
+        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        runtime.block_on(game_fetch::get_owned_games(&key, &steam_id))
+            .into_iter()
+            .map(|g| Game{game_name: g.name.clone()})
             .collect()
     }
 }
