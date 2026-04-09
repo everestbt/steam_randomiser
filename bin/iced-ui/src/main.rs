@@ -3,7 +3,13 @@ use iced::widget::{
     center_x, center_y, column, container, row, scrollable, slider, table, text, tooltip,
 };
 use iced::{Center, Left, Element, Font, Theme};
-use db::achievement_store;
+use db::{
+    achievement_store, 
+    steam_id_store
+};
+use api::game_fetch;
+use std::collections::HashMap;
+use std::env;
 
 pub fn main() -> iced::Result {
     color_eyre::install().expect("Failed to install color eyre");
@@ -118,10 +124,19 @@ struct Goal {
 
 impl Goal {
     fn list() -> Vec<Self> {
+        let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
+        let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
+
+        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let game_map = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id))
+            .into_iter()
+            .map(|g| (g.appid.clone(), g))
+            .collect::<HashMap<_, _>>();
+
         let mut goals = achievement_store::get_achievements().expect("Failed to load achievements");
         goals.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
         goals.iter().map(|g| Goal {
-                game_name: g.app_id.to_string(),
+                game_name: game_map.get(&g.app_id).unwrap().name.clone(),
                 achievement_name: g.display_name.clone(),
                 description: g.description.clone().unwrap_or("-".to_string()),
             })
