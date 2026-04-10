@@ -64,10 +64,10 @@ impl App {
             ];
 
             table(columns, &self.goals)
-                .padding_x(self.padding.0)
-                .padding_y(self.padding.1)
-                .separator_x(self.separator.0)
-                .separator_y(self.separator.1)
+                .padding_x(10)
+                .padding_y(5)
+                .separator_x(1)
+                .separator_y(1)
         };
 
         column![
