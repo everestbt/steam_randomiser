@@ -21,37 +21,45 @@ pub fn increment() -> Result<bool> {
         })
     })?;
 
-    let row = result.next();
     let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
-    let count;
-    if row.is_none() {
+    let count = if let Some(row) = result.next() {
+        if let Ok(current_count) = row {
+            let today_count = if current_count.date == today {
+                current_count.count + 1
+            }
+            else {
+                1
+            };
+            // Clear the table and then add in the latest value
+            conn.execute(
+                "DELETE FROM steam_request_count",
+                [], // No parameters needed
+            )?;
+            conn.execute(
+                "INSERT INTO steam_request_count (date, count) VALUES (?1,?2)",
+                params![today, today_count],
+            )?;
+            Ok(today_count)
+        }
+        else {
+            Err(row.err().unwrap())
+        }
+    }
+    else {
         conn.execute(
             "INSERT INTO steam_request_count (date, count) VALUES (?1,?2)",
             params![today, 1],
         )?;
-        count = 1;
-    }
-    else {
-        let current_count = row.unwrap().unwrap();        
-        if current_count.date == today {
-            count = current_count.count + 1;
-        }
-        else {
-            count = 1;
-        }
-        // Clear the table and then add in the latest value
-        conn.execute(
-            "DELETE FROM steam_request_count",
-            [], // No parameters needed
-        )?;
-        conn.execute(
-                "INSERT INTO steam_request_count (date, count) VALUES (?1,?2)",
-                params![today, count],
-            )?;
-    }
+        Ok(1)
+    };
     
     // Check that the value is less than or equal to the set limit of 10000
-    Ok(count <= 10000)
+    if let Ok(c) = count {
+        Ok(c <= 10000)
+    }
+    else {
+        Err(count.err().unwrap())
+    }
 }
 
 pub fn get_count() -> Result<i32> {
@@ -68,15 +76,17 @@ pub fn get_count() -> Result<i32> {
         })
     })?;
 
-    let row = result.next();
-    let count = if row.is_none() {
-        0
+    if let Some(row) = result.next() {
+        if let Ok(r) = row {
+            Ok(r.count)
+        }
+        else {
+            Err(row.err().unwrap())
+        }
     }
     else {
-        row.unwrap().unwrap().count
-    };
-
-    Ok(count)
+        Ok(0)
+    }
 }
 
 fn create_table(conn: &Connection) -> Result<()> {
