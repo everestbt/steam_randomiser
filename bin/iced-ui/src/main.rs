@@ -1,15 +1,12 @@
-use iced::font;
+mod games_view;
+mod goals_view;
+
 use iced::widget::{
-    center_x, center_y, column, container, row, scrollable, slider, table, text, tooltip, button
+    center_x, center_y, column, container, row, scrollable, slider, text, tooltip, button,
 };
-use iced::{Center, Left, Element, Font, Theme};
-use db::{
-    achievement_store, 
-    steam_id_store
-};
-use api::game_fetch;
-use std::collections::HashMap;
-use std::env;
+use iced::{Center, Element, Font, Theme};
+use games_view::Game;
+use goals_view::Goal;
 
 pub fn main() -> iced::Result {
     color_eyre::install().expect("Failed to install color eyre");
@@ -70,43 +67,9 @@ impl App {
             ]
         };
 
-        let table = {
-            let bold = |header| {
-                text(header).font(Font {
-                    weight: font::Weight::Bold,
-                    ..Font::DEFAULT
-                })
-            };
-            match self.view {
-                View::Goals => {
-                    let columns = [
-                        table::column(bold("Game Name"), |goal: &Goal| text(&goal.game_name)),
-                        table::column(bold("Achievement Name"), |goal: &Goal| text(&goal.achievement_name))
-                            .align_x(Left)
-                            .align_y(Center),
-                        table::column(bold("Description"), |goal: &Goal| text(&goal.description))
-                            .align_x(Left)
-                            .align_y(Center),
-                    ];
-
-                    table(columns, &self.goals)
-                        .padding_x(self.padding.0)
-                        .padding_y(self.padding.1)
-                        .separator_x(self.separator.0)
-                        .separator_y(self.separator.1)
-                },
-                View::Games => {
-                    let columns = [
-                        table::column(bold("Game Name"), |game: &Game| text(&game.game_name)),
-                    ];
-
-                    table(columns, &self.games)
-                        .padding_x(self.padding.0)
-                        .padding_y(self.padding.1)
-                        .separator_x(self.separator.0)
-                        .separator_y(self.separator.1)
-                }
-            }
+        let table = match self.view {
+            View::Goals => self.goal_table(),
+            View::Games => self.game_table(),
         };
 
         let controls = {
@@ -151,50 +114,5 @@ impl App {
             center_x(controls).padding(10).style(container::dark)
         ]
         .into()
-    }
-}
-
-struct Goal {
-    game_name: String,
-    achievement_name: String,
-    description: String,
-}
-
-impl Goal {
-    fn list() -> Vec<Self> {
-        let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
-        let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
-
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        let game_map = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id))
-            .into_iter()
-            .map(|g| (g.appid, g))
-            .collect::<HashMap<_, _>>();
-
-        let mut goals = achievement_store::get_achievements().expect("Failed to load achievements");
-        goals.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
-        goals.iter().map(|g| Goal {
-                game_name: game_map.get(&g.app_id).unwrap().name.clone(),
-                achievement_name: g.display_name.clone(),
-                description: g.description.clone().unwrap_or("-".to_string()),
-            })
-            .collect()
-    }
-}
-
-struct Game {
-    game_name: String,
-}
-
-impl Game {
-    fn list() -> Vec<Self> {
-        let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
-        let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
-
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        runtime.block_on(game_fetch::get_owned_games(&key, &steam_id))
-            .into_iter()
-            .map(|g| Game{game_name: g.name.clone()})
-            .collect()
     }
 }
