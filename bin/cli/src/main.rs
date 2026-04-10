@@ -60,25 +60,20 @@ async fn main() -> Result<(), reqwest::Error> {
     }
     let key = key_var.unwrap();
 
-    let steam_id: String;
-    if args.id.is_some() {
-        steam_id = args.id.unwrap();
-        steam_id_store::save_id(&steam_id).expect("Failed to save the id");
-        println!("Saved your steam id, no need to use --id each time now. You can replace it by using --id again.")
+    let steam_id= if let Some(id) = args.id {
+        steam_id_store::save_id(&id).expect("Failed to save the id");
+        println!("Saved your steam id, no need to use --id each time now. You can replace it by using --id again.");
+        id
     }
     else {
-        steam_id = steam_id_store::get_id().expect("Failed to load a key, use --id first");
-    }
+        steam_id_store::get_id().expect("Failed to load a key, use --id first")
+    };
 
     if args.random_achievement {
         let game = request_game_name(&key, &steam_id).await.expect("No game found for search");
 
         let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&key, &steam_id, &game).await;
-        if random_achievement.is_none() {
-            println!("No achievements left in this game!");
-        }
-        else {
-            let a = random_achievement.unwrap();
+        if let Some(a) = random_achievement {
             println!("And your selected achievement is:");
             println!(
                 "{achievement} : {description}",
@@ -92,17 +87,20 @@ async fn main() -> Result<(), reqwest::Error> {
             achievement_store::save_achievement(&a.name, &a.display_name, &a.description, &game.appid, &game.last_played).expect("Failed to save achievement");
             println!("Saved the achievement!");
         }
+        else {
+            println!("No achievements left in this game!");
+        }
     }
     else if args.random_game {
         // Fetch games
         let mut owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
         let mut game_and_achievement: Option<(game_fetch::Game, GameAchievement)> = None;
-        while owned_games.len() > 0 {
+        while !owned_games.is_empty() {
             let index = (rand::random::<f32>() * owned_games.len() as f32).floor() as usize;
             let random_game = owned_games.remove(index);
             let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&key, &steam_id, &random_game).await;
-            if random_achievement.is_some() {
-                game_and_achievement = Some((random_game, random_achievement.unwrap()));
+            if let Some(a) = random_achievement {
+                game_and_achievement = Some((random_game, a));
                 break;
             }
         }
@@ -175,11 +173,10 @@ async fn main() -> Result<(), reqwest::Error> {
             }
         }
     }
-    else if args.purge.is_some() {
-        if args.purge.is_some_and(|f| f == "completed_games") {
+    else if args.purge.is_some()
+        && args.purge.is_some_and(|f| f == "completed_games") {
             game_completion_cache::drop_table().expect("Failed to drop table");
         }
-    }
 
     if args.debug {
         let request_count = request_store::get_count().expect("Failed to load request count");
@@ -198,7 +195,7 @@ async fn request_game_name(key : &str, steam_id : &str) -> Option<game_fetch::Ga
 	
     // Fetch games and search for it
     let game_name_lowercase: String = game_name.trim().to_lowercase();
-    let game_list: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await
+    let game_list: Vec<game_fetch::Game> = game_fetch::get_owned_games(key, steam_id).await
         .iter()
         .filter(|a| a.name.to_lowercase().contains(&game_name_lowercase))
         .cloned()
@@ -206,7 +203,7 @@ async fn request_game_name(key : &str, steam_id : &str) -> Option<game_fetch::Ga
 
     if game_list.is_empty() {
         println!("Failed to find that game");
-        return Option::None;
+        Option::None
     } 
     else if game_list.len() > 1 {
         println!("There are a few games to choose from:");
@@ -224,9 +221,9 @@ async fn request_game_name(key : &str, steam_id : &str) -> Option<game_fetch::Ga
         if index < 0 || index >= i {
             panic!("Enter a value that is included in the index")
         }
-        return Option::Some(game_list.get(index as usize).unwrap().clone())
+        Option::Some(game_list.get(index as usize).unwrap().clone())
     }
     else {
-        return Option::Some(game_list.first().unwrap().clone());
+        Option::Some(game_list.first().unwrap().clone())
     }
 }

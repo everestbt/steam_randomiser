@@ -58,8 +58,8 @@ fn main() -> eframe::Result {
     // Refresh
     let mut refresh : bool = false;
 
-    eframe::run_simple_native("Steam randomiser", options, move |ctx, _frame| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    eframe::run_ui_native("Steam randomiser", options, move |ctx, _frame| {
+        egui::CentralPanel::default().show_inside(ctx, |ui| {
             ui.heading("Welcome to Steam Randomiser");
 
             ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {               

@@ -25,17 +25,17 @@ async fn main() -> Result<(), reqwest::Error> {
     let args = Args::parse();
     match args.migration.as_str() {
         "add_display_name_and_description_and_last_played_to_achievement_store" => {
-            if args.id.is_none() || args.key.is_none() {
-                println!("You need to suppy an API key and steam ID")
-            }
-            else {
-                let result = add_display_name_and_description_and_last_played_to_achievement_store::run_migration(&args.key.unwrap(), &args.id.unwrap()).await;
-                if result.is_err() {
-                    println!("{error}", error = result.err().unwrap());
+            if let Some(id) = args.id && let Some(key) = args.key {
+                let result = add_display_name_and_description_and_last_played_to_achievement_store::run_migration(&key, &id).await;
+                if let Err(e) = result {
+                    println!("{error}", error = e);
                 }
                 else {
                     println!("Success");
                 }
+            }
+            else {
+                println!("You need to suppy an API key and steam ID")
             }
         },
         "drop_key_store" => {
