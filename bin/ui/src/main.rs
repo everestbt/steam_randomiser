@@ -72,24 +72,22 @@ fn main() -> eframe::Result {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             for g in &goals {
-                                let result;
                                 let game_name = game_list.iter().find(|game| game.appid == g.app_id).unwrap().name.clone();
-                                if g.description.is_some() {
-                                    result = format!("{} : {} : {}", game_name, g.display_name.clone(), g.description.clone().unwrap());
+                                let result = if  let Some(d) = &g.description {
+                                    format!("{} : {} : {}", game_name, g.display_name.clone(), d.clone())
                                 }
                                 else {
-                                    result = format!("{} : {}", game_name, g.display_name.clone());
-                                }
+                                    format!("{} : {}", game_name, g.display_name.clone())
+                                };
                                 if ui
                                     .add(egui::Label::new(result)
                                     .sense(egui::Sense::click()))
-                                    .clicked() {
-                                    if excluding_mode {
+                                    .clicked()
+                                    && excluding_mode {
                                         achievement_store::delete_achievement(&g.id).expect("Failed to delete achievement");
                                         excluded_achievement_store::save_excluded_achievement(&g.achievement_name, &g.app_id).expect("Failed to save excluded achievement");
                                         refresh = true;
-                                    }
-                                };
+                                    };
                                 ui.add_space(5.0);
                             }
                         });
@@ -114,20 +112,18 @@ fn main() -> eframe::Result {
                         ui.add_space(5.0);
                         let game_goals = goals.iter().filter(|a| a.app_id == s.appid);
                         for a in game_goals {
-                            let result;
-                            if a.description.is_some() {
-                                result = format!("{} : {}", a.display_name.clone(), a.description.clone().unwrap());
+                            let result = if let Some(d) = a.description.clone() {
+                                format!("{} : {}", a.display_name.clone(), d)
                             }
                             else {
-                                result = format!("{}", a.display_name.clone());
-                            }
+                                a.display_name.clone().to_string()
+                            };
                             ui.label(result);
                             ui.add_space(5.0);
                         }
                         if ui.add(egui::Button::new("Random Achievement")).clicked() {
-                            let random_achievement = runtime.block_on(goals::get_random_achievement_for_game(&key, &steam_id, &s));
-                            if random_achievement.is_some() {
-                                let a = random_achievement.unwrap();
+                            let random_achievement = runtime.block_on(goals::get_random_achievement_for_game(&key, &steam_id, s));
+                            if let Some(a) = random_achievement {
                                 achievement_store::save_achievement(&a.name, &a.display_name, &a.description, &s.appid, &s.last_played).expect("Failed to save achievement");
                                 refresh = true;
                             }
@@ -156,31 +152,26 @@ fn main() -> eframe::Result {
                         }
                         for game in &mut game_list {
                             // check all filters
-                            if filter_in_progress {
-                                if completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0) == 100 {
+                            if filter_in_progress
+                                && completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0) == 100 {
                                     continue;
                                 }
-                            }
-                            if filter_completed_game {
-                                if completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0) != 100 {
+                            if filter_completed_game
+                                && completed_games_cache.get(&game.appid).map(|c| c.complete).unwrap_or(0) != 100 {
                                     continue;
                                 }
-                            }
-                            if filter_perfect {
-                                if !completed_games_cache.get(&game.appid).map(|c| c.perfect).unwrap_or(false) {
+                            if filter_perfect
+                                && !completed_games_cache.get(&game.appid).map(|c| c.perfect).unwrap_or(false) {
                                     continue;
                                 }
-                            }
-                            if filter_has_achievements {
-                                if !completed_games_cache.get(&game.appid).map(|c| c.has_achievements).unwrap_or(true) {
+                            if filter_has_achievements
+                                && !completed_games_cache.get(&game.appid).map(|c| c.has_achievements).unwrap_or(true) {
                                     continue;
                                 }
-                            }
-                            if filter_search != "" {
-                                if !game.name.to_lowercase().contains(&filter_search.trim().to_lowercase()) {
+                            if !filter_search.is_empty()
+                                && !game.name.to_lowercase().contains(&filter_search.trim().to_lowercase()) {
                                     continue;
                                 }
-                            }
 
                             ui.add_space(5.0);
                             // Add a clickable game using egui::Label::sense()
@@ -213,5 +204,5 @@ fn main() -> eframe::Result {
 fn get_goals() -> Vec<achievement_store::Achievement> {
     let mut goals: Vec<achievement_store::Achievement> = achievement_store::get_achievements().expect("Failed to load achievements");
     goals.sort_by(|a, b| i32::cmp(&a.app_id,&b.app_id));
-    return goals;
+    goals
 }
