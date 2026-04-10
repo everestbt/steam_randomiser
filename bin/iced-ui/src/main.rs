@@ -168,7 +168,7 @@ impl Goal {
         let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
         let game_map = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id))
             .into_iter()
-            .map(|g| (g.appid.clone(), g))
+            .map(|g| (g.appid, g))
             .collect::<HashMap<_, _>>();
 
         let mut goals = achievement_store::get_achievements().expect("Failed to load achievements");
