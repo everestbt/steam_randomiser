@@ -2,10 +2,10 @@ mod games_view;
 mod goals_view;
 
 use iced::widget::{
-    center_x, center_y, column, container, row, scrollable, slider, text, tooltip, button,
+    center_x, column, container, row, slider, text, tooltip, button,
 };
 use iced::{Center, Element, Font, Theme};
-use games_view::Game;
+use games_view::{Game, GameFilter};
 use goals_view::Goal;
 
 pub fn main() -> iced::Result {
@@ -29,6 +29,8 @@ enum Message {
     SeparatorChanged(f32, f32),
     GamesView,
     GoalsView,
+    GamesInProgress,
+    GamesCompleted,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -42,7 +44,7 @@ impl App {
     fn new() -> Self {
         Self {
             view: View::default(),
-            games: Game::list(),
+            games: Game::list(GameFilter::default()),
             goals: Goal::list(),
             padding: (10.0, 5.0),
             separator: (1.0, 1.0),
@@ -55,6 +57,8 @@ impl App {
             Message::SeparatorChanged(x, y) => self.separator = (x, y),
             Message::GamesView => self.view = View::Games,
             Message::GoalsView => self.view = View::Goals,
+            Message::GamesInProgress => self.games = Game::list(GameFilter::InProgress),
+            Message::GamesCompleted => self.games = Game::list(GameFilter::Completed),
         }
     }
 
@@ -67,9 +71,9 @@ impl App {
             ]
         };
 
-        let table = match self.view {
-            View::Goals => self.goal_table(),
-            View::Games => self.game_table(),
+        let main_view = match self.view {
+            View::Goals => self.goal_view(),
+            View::Games => self.game_view(),
         };
 
         let controls = {
@@ -110,7 +114,7 @@ impl App {
 
         column![
             center_x(view_selector).padding(10),
-            center_y(scrollable(center_x(table)).spacing(10)).padding(10),
+            main_view,
             center_x(controls).padding(10).style(container::dark)
         ]
         .into()

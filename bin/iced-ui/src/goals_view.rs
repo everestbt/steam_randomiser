@@ -4,9 +4,9 @@ use crate::Message;
 
 use iced::font;
 use iced::widget::{
-    table, text,
+    table, text, center_x, center_y, column, scrollable
 };
-use iced::{Center, Left, Font,};
+use iced::{Center, Left, Font, Element};
 use db::{
     achievement_store, 
     steam_id_store
@@ -45,27 +45,33 @@ impl Goal {
 }
 
 impl App {
-    pub fn goal_table(&self) -> table::Table<'_, Message> {
-        let bold = |header| {
-            text(header).font(Font {
-                weight: font::Weight::Bold,
-                ..Font::DEFAULT
-            })
-        };
-        let columns = [
-            table::column(bold("Game Name"), |goal: &Goal| text(&goal.game_name)),
-            table::column(bold("Achievement Name"), |goal: &Goal| text(&goal.achievement_name))
-                .align_x(Left)
-                .align_y(Center),
-            table::column(bold("Description"), |goal: &Goal| text(&goal.description))
-                .align_x(Left)
-                .align_y(Center),
-        ];
+    pub fn goal_view(&self) -> Element<'_, Message> {
+        let table = {
+            let bold = |header| {
+                text(header).font(Font {
+                    weight: font::Weight::Bold,
+                    ..Font::DEFAULT
+                })
+            };
+            let columns = [
+                table::column(bold("Game Name"), |goal: &Goal| text(&goal.game_name)),
+                table::column(bold("Achievement Name"), |goal: &Goal| text(&goal.achievement_name))
+                    .align_x(Left)
+                    .align_y(Center),
+                table::column(bold("Description"), |goal: &Goal| text(&goal.description))
+                    .align_x(Left)
+                    .align_y(Center),
+            ];
 
-        table(columns, &self.goals)
-            .padding_x(self.padding.0)
-            .padding_y(self.padding.1)
-            .separator_x(self.separator.0)
-            .separator_y(self.separator.1)
+            table(columns, &self.goals)
+                .padding_x(self.padding.0)
+                .padding_y(self.padding.1)
+                .separator_x(self.separator.0)
+                .separator_y(self.separator.1)
+        };
+
+        column![
+            center_y(scrollable(center_x(table)).spacing(10)).padding(10),
+        ].into()
     }
 }
