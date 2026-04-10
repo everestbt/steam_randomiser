@@ -78,10 +78,10 @@ pub async fn get_player_achievements(key : &str, steam_id : &str, app_id : &i32)
 
     let val = response.unwrap();
     // Success code can be true but no achievements present, typically for more modern games (Dota 2 is an example app_id 570)
-    if val.playerstats.success && val.playerstats.achievements.is_some() {
+    if val.playerstats.success && let Some(a) = val.playerstats.achievements && let Some(n) = val.playerstats.game_name {
         Option::Some(PlayerAchievements {
-            achievements: val.playerstats.achievements.expect("Achievements should have been present..."),
-            game_name: val.playerstats.game_name.expect("Game name should have been present..."),
+            achievements: a,
+            game_name: n,
         })
     }
     else {
