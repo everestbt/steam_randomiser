@@ -4,7 +4,7 @@ use crate::Message;
 
 use iced::font;
 use iced::widget::{
-    center_x, center_y, column, row, table, text, scrollable, button,
+    center_x, center_y, column, row, table, text, scrollable, button, checkbox
 };
 use iced::{Element, Font};
 use db::{
@@ -27,7 +27,7 @@ pub struct GameDisplay {
 }
 
 impl GameDisplay {
-    pub fn list(owned_games: &Vec<Game>, completed_games_cache: &HashMap<i32, GameCompletion>, filter: GameFilter) -> Vec<Self> {
+    pub fn list(owned_games: &Vec<Game>, completed_games_cache: &HashMap<i32, GameCompletion>, has_achievements: bool, filter: GameFilter) -> Vec<Self> {
         owned_games
             .iter()
             .filter(|g| {
@@ -44,6 +44,14 @@ impl GameDisplay {
                     }
                 }
             })
+            .filter(|g| {
+                if has_achievements {
+                    completed_games_cache.get(&g.appid).map(|c| c.has_achievements).unwrap_or(false)
+                }
+                else {
+                    true
+                }
+            })
             .map(|g| GameDisplay{game_name: g.name.clone()})
             .collect()
     }
@@ -58,6 +66,10 @@ impl App {
                 button("Perfected").on_press(Message::GamesPerfected),
             ]
         };
+
+        let achievement_filter = checkbox(self.games_have_achievements_filter)
+            .label("Has Achievements")
+            .on_toggle(Message::AchievementCheckboxToggled);
 
         let table = {
             let bold = |header| {
@@ -78,6 +90,7 @@ impl App {
         };
         column![
             center_x(filter_games).padding(10),
+            center_x(achievement_filter).padding(10),
             center_y(scrollable(center_x(table)).spacing(10)).padding(10),
         ].into()
     }

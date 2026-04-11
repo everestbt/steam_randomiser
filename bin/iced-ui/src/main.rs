@@ -28,6 +28,7 @@ struct App {
     view: View,
     // DISPLAY
     games: Vec<GameDisplay>,
+    games_have_achievements_filter: bool,
     goals: Vec<Goal>,
     // DATA
     owned_games: Vec<Game>,
@@ -41,6 +42,7 @@ enum Message {
     GamesInProgress,
     GamesCompleted,
     GamesPerfected,
+    AchievementCheckboxToggled(bool),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -55,7 +57,8 @@ impl App {
         let data = load_data();
         Self {
             view: View::default(),
-            games: GameDisplay::list(&data.owned_games, &data.completed_games_cache, GameFilter::default()),
+            games: GameDisplay::list(&data.owned_games, &data.completed_games_cache, true, GameFilter::default()),
+            games_have_achievements_filter: true,
             goals: Goal::list(),
             owned_games: data.owned_games,
             completed_games_cache: data.completed_games_cache,
@@ -66,9 +69,10 @@ impl App {
         match message {
             Message::GamesView => self.view = View::Games,
             Message::GoalsView => self.view = View::Goals,
-            Message::GamesInProgress => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, GameFilter::InProgress),
-            Message::GamesCompleted => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, GameFilter::Completed),
-            Message::GamesPerfected => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, GameFilter::Perfected),
+            Message::GamesInProgress => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameFilter::InProgress),
+            Message::GamesCompleted => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameFilter::Completed),
+            Message::GamesPerfected => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameFilter::Perfected),
+            Message::AchievementCheckboxToggled(is_checked) => self.games_have_achievements_filter = is_checked,
         }
     }
 
