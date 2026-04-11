@@ -26,7 +26,7 @@ pub struct GameListDisplay {
     //DISPLAY
     pub game_name: String,
     //DATA
-    id: i32,
+    pub id: i32,
 }
 
 impl GameListDisplay {
@@ -73,6 +73,8 @@ impl App {
             ]
         };
 
+        let random_game = button("Random Game").on_press(Message::RandomGame);
+
         let achievement_filter = checkbox(self.games_have_achievements_filter)
             .label("Has Achievements")
             .on_toggle(Message::AchievementCheckboxToggled);
@@ -97,6 +99,7 @@ impl App {
         column![
             center_x(filter_games).padding(10),
             center_x(achievement_filter).padding(10),
+            center_x(random_game).padding(10),
             center_y(scrollable(center_x(table)).spacing(10)).padding(10),
         ].into()
     }

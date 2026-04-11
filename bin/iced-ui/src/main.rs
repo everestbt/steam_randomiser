@@ -36,6 +36,7 @@ enum Message {
     GamesPerfected,
     AchievementCheckboxToggled(bool),
     GenerateRandomAchievement(i32), // app_id
+    RandomGame,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -77,8 +78,8 @@ impl App {
         match message {
             Message::GamesView => self.view = View::Games,
             Message::GameView(id) => {
-                self.view = View::Game(id);
                 self.load_game_display(&id);
+                self.view = View::Game(id);
             },
             Message::GoalsView => self.view = View::Goals,
             Message::GamesInProgress => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress),
@@ -89,6 +90,11 @@ impl App {
                 let game = self.owned_games.iter().find(|g| g.appid == app_id).expect("Selected for a game that does not exist");
                 generate_random_achievement(game);
                 self.goals = Goal::list();
+            },
+            Message::RandomGame => {
+                let random_game_id = self.games.get(rand::random_range(..self.games.len())).unwrap().id.clone();
+                self.load_game_display(&random_game_id);
+                self.view = View::Game(random_game_id);
             }
         }
     }
