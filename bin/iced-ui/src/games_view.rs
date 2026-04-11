@@ -8,10 +8,10 @@ use iced::widget::{
 };
 use iced::{Element, Font};
 use db::{
-    steam_id_store
+    game_completion_cache::GameCompletion,
 };
-use api::game_fetch;
-use std::env;
+use api::game_fetch::Game;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub enum GameFilter {
@@ -19,28 +19,32 @@ pub enum GameFilter {
     None,
     InProgress,
     Completed,
+    Perfected,
 }
 
-pub struct Game {
+pub struct GameDisplay {
     pub game_name: String,
 }
 
-impl Game {
-    pub fn list(filter: GameFilter) -> Vec<Self> {
-        let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
-        let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
-
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        runtime.block_on(game_fetch::get_owned_games(&key, &steam_id))
-            .into_iter()
-            .filter(|_| {
+impl GameDisplay {
+    pub fn list(owned_games: &Vec<Game>, completed_games_cache: &HashMap<i32, GameCompletion>, filter: GameFilter) -> Vec<Self> {
+        owned_games
+            .iter()
+            .filter(|g| {
                 match filter {
                     GameFilter::None => true,
-                    GameFilter::InProgress => true,
-                    GameFilter::Completed => true,
+                    GameFilter::InProgress => {
+                        completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0) < 100
+                    },
+                    GameFilter::Completed => {
+                        completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0) == 100
+                    },
+                    GameFilter::Perfected => {
+                        completed_games_cache.get(&g.appid).map(|c| c.perfect).unwrap_or(false)
+                    }
                 }
             })
-            .map(|g| Game{game_name: g.name.clone()})
+            .map(|g| GameDisplay{game_name: g.name.clone()})
             .collect()
     }
 }
@@ -51,6 +55,7 @@ impl App {
             row![
                 button("In progress").on_press(Message::GamesInProgress).padding(5),
                 button("Completed").on_press(Message::GamesCompleted),
+                button("Perfected").on_press(Message::GamesPerfected),
             ]
         };
 
@@ -62,7 +67,7 @@ impl App {
                 })
             };
             let columns = [
-                table::column(bold("Game Name"), |game: &Game| text(&game.game_name)),
+                table::column(bold("Game Name"), |game: &GameDisplay| text(&game.game_name)),
             ];
 
             table(columns, &self.games)
