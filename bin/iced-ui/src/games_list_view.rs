@@ -14,7 +14,7 @@ use api::game_fetch::Game;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
-pub enum GameFilter {
+pub enum GameListFilter {
     #[default]
     None,
     InProgress,
@@ -22,24 +22,27 @@ pub enum GameFilter {
     Perfected,
 }
 
-pub struct GameDisplay {
+pub struct GameListDisplay {
+    //DISPLAY
     pub game_name: String,
+    //DATA
+    id: i32,
 }
 
-impl GameDisplay {
-    pub fn list(owned_games: &Vec<Game>, completed_games_cache: &HashMap<i32, GameCompletion>, has_achievements: bool, filter: GameFilter) -> Vec<Self> {
+impl GameListDisplay {
+    pub fn list(owned_games: &Vec<Game>, completed_games_cache: &HashMap<i32, GameCompletion>, has_achievements: bool, filter: GameListFilter) -> Vec<Self> {
         owned_games
             .iter()
             .filter(|g| {
                 match filter {
-                    GameFilter::None => true,
-                    GameFilter::InProgress => {
+                    GameListFilter::None => true,
+                    GameListFilter::InProgress => {
                         completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0) < 100
                     },
-                    GameFilter::Completed => {
+                    GameListFilter::Completed => {
                         completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0) == 100
                     },
-                    GameFilter::Perfected => {
+                    GameListFilter::Perfected => {
                         completed_games_cache.get(&g.appid).map(|c| c.perfect).unwrap_or(false)
                     }
                 }
@@ -52,13 +55,16 @@ impl GameDisplay {
                     true
                 }
             })
-            .map(|g| GameDisplay{game_name: g.name.clone()})
+            .map(|g| GameListDisplay{
+                game_name: g.name.clone(),
+                id: g.appid.clone(),
+            })
             .collect()
     }
 }
 
 impl App {
-    pub fn game_view(&self) -> Element<'_, Message> {
+    pub fn game_list_view(&self) -> Element<'_, Message> {
         let filter_games = {
             row![
                 button("In progress").on_press(Message::GamesInProgress).padding(5),
@@ -79,7 +85,7 @@ impl App {
                 })
             };
             let columns = [
-                table::column(bold("Game Name"), |game: &GameDisplay| text(&game.game_name)),
+                table::column(bold("Game Name"), |game: &GameListDisplay| button(game.game_name.as_str()).on_press(Message::GameView(game.id).into())),
             ];
 
             table(columns, &self.games)

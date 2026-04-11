@@ -1,11 +1,12 @@
-mod games_view;
+mod games_list_view;
 mod goals_view;
+mod game_view;
 
 use iced::widget::{
     center_x, column, row, button,
 };
 use iced::{Element, Theme};
-use games_view::{GameDisplay, GameFilter};
+use games_list_view::{GameListDisplay, GameListFilter};
 use goals_view::Goal;
 use api::game_fetch::{self, Game};
 use std::env;
@@ -15,6 +16,7 @@ use db::{
     game_completion_cache::{self, GameCompletion},
 };
 use goals_lib::goals;
+use game_view::GameDisplay;
 
 pub fn main() -> iced::Result {
     color_eyre::install().expect("Failed to install color eyre");
@@ -23,21 +25,10 @@ pub fn main() -> iced::Result {
         .run()
 }
 
-struct App {
-    // SETTINGS
-    view: View,
-    // DISPLAY
-    games: Vec<GameDisplay>,
-    games_have_achievements_filter: bool,
-    goals: Vec<Goal>,
-    // DATA
-    owned_games: Vec<Game>,
-    completed_games_cache: HashMap<i32, GameCompletion>,
-}
-
 #[derive(Debug, Clone)]
 enum Message {
     GamesView,
+    GameView(i32),
     GoalsView,
     GamesInProgress,
     GamesCompleted,
@@ -50,6 +41,20 @@ enum View {
     Goals,
     #[default]
     Games,
+    Game(i32), // app_id
+}
+
+struct App {
+    // SETTINGS
+    view: View,
+    // DISPLAY
+    games: Vec<GameListDisplay>,
+    games_have_achievements_filter: bool,
+    goals: Vec<Goal>,
+    game_views : HashMap<i32, GameDisplay>,
+    // DATA
+    owned_games: Vec<Game>,
+    completed_games_cache: HashMap<i32, GameCompletion>,
 }
 
 impl App {
@@ -57,9 +62,10 @@ impl App {
         let data = load_data();
         Self {
             view: View::default(),
-            games: GameDisplay::list(&data.owned_games, &data.completed_games_cache, true, GameFilter::default()),
+            games: GameListDisplay::list(&data.owned_games, &data.completed_games_cache, true, GameListFilter::default()),
             games_have_achievements_filter: true,
             goals: Goal::list(),
+            game_views: HashMap::new(),
             owned_games: data.owned_games,
             completed_games_cache: data.completed_games_cache,
         }
@@ -68,10 +74,14 @@ impl App {
     fn update(&mut self, message: Message) {
         match message {
             Message::GamesView => self.view = View::Games,
+            Message::GameView(id) => {
+                self.view = View::Game(id);
+                self.load_game_display(&id);
+            },
             Message::GoalsView => self.view = View::Goals,
-            Message::GamesInProgress => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameFilter::InProgress),
-            Message::GamesCompleted => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameFilter::Completed),
-            Message::GamesPerfected => self.games = GameDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameFilter::Perfected),
+            Message::GamesInProgress => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress),
+            Message::GamesCompleted => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed),
+            Message::GamesPerfected => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected),
             Message::AchievementCheckboxToggled(is_checked) => self.games_have_achievements_filter = is_checked,
         }
     }
@@ -86,7 +96,8 @@ impl App {
 
         let main_view = match self.view {
             View::Goals => self.goal_view(),
-            View::Games => self.game_view(),
+            View::Games => self.game_list_view(),
+            View::Game(_) => self.game_view(),
         };
 
         column![
