@@ -25,13 +25,15 @@ pub enum GameListFilter {
 pub struct GameListDisplay {
     //DISPLAY
     pub game_name: String,
+    pub progress_display: String,
     //DATA
     pub id: i32,
+    progress: i8
 }
 
 impl GameListDisplay {
     pub fn list(owned_games: &Vec<Game>, completed_games_cache: &HashMap<i32, GameCompletion>, has_achievements: bool, filter: GameListFilter) -> Vec<Self> {
-        owned_games
+        let mut games: Vec<GameListDisplay> = owned_games
             .iter()
             .filter(|g| {
                 match filter {
@@ -55,11 +57,18 @@ impl GameListDisplay {
                     true
                 }
             })
-            .map(|g| GameListDisplay{
-                game_name: g.name.clone(),
-                id: g.appid.clone(),
+            .map(|g| {
+                let progress = completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0);
+                GameListDisplay{
+                    game_name: g.name.clone(),
+                    progress_display: progress.to_string(),
+                    progress,
+                    id: g.appid.clone(),
+                }
             })
-            .collect()
+            .collect();
+        games.sort_by(|a,b| b.progress.cmp(&a.progress));
+        games
     }
 }
 
@@ -88,6 +97,7 @@ impl App {
             };
             let columns = [
                 table::column(bold("Game Name"), |game: &GameListDisplay| button(game.game_name.as_str()).on_press(Message::GameView(game.id).into())),
+                table::column(bold("Progress"), |game: &GameListDisplay| text(game.progress_display.as_str())),
             ];
 
             table(columns, &self.games)
