@@ -4,7 +4,7 @@ use crate::View;
 use crate::Message;
 
 use iced::widget::{
-    center_x, column, text,
+    center_x, column, text, button
 };
 use iced::{Element};
 
@@ -18,7 +18,9 @@ impl App {
         match self.view {
             View::Game(app_id) => {
                 let game = self.game_views.get(&app_id).expect("Should have been inserted on message processing");
+                let random_achievement = button("Random achievement!").on_press(Message::GenerateRandomAchievement(app_id));
                 column![
+                    center_x(random_achievement),
                     center_x(text(game.game_name.clone())),
                 ].into()
             },

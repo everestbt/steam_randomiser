@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use db::{
     steam_id_store,
     game_completion_cache::{self, GameCompletion},
+    achievement_store,
 };
 use goals_lib::goals;
 use game_view::GameDisplay;
@@ -28,12 +29,13 @@ pub fn main() -> iced::Result {
 #[derive(Debug, Clone)]
 enum Message {
     GamesView,
-    GameView(i32),
+    GameView(i32), //app_id
     GoalsView,
     GamesInProgress,
     GamesCompleted,
     GamesPerfected,
     AchievementCheckboxToggled(bool),
+    GenerateRandomAchievement(i32), // app_id
 }
 
 #[derive(Debug, Clone, Default)]
@@ -83,6 +85,11 @@ impl App {
             Message::GamesCompleted => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed),
             Message::GamesPerfected => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected),
             Message::AchievementCheckboxToggled(is_checked) => self.games_have_achievements_filter = is_checked,
+            Message::GenerateRandomAchievement(app_id) => {
+                let game = self.owned_games.iter().find(|g| g.appid == app_id).expect("Selected for a game that does not exist");
+                generate_random_achievement(game);
+                self.goals = Goal::list();
+            }
         }
     }
 
@@ -129,5 +136,15 @@ fn load_data() -> DataLoad {
     DataLoad { 
         owned_games,
         completed_games_cache,
+    }
+}
+
+fn generate_random_achievement(game: &Game) {
+    let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
+    let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
+    let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+    let random_achievement = runtime.block_on(goals::get_random_achievement_for_game(&key, &steam_id, game));
+    if let Some(a) = random_achievement {
+        achievement_store::save_achievement(&a.name, &a.display_name, &a.description, &game.appid, &game.last_played).expect("Failed to save achievement");
     }
 }
