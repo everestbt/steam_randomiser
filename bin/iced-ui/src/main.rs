@@ -85,7 +85,9 @@ impl App {
             Message::GamesInProgress => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress),
             Message::GamesCompleted => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed),
             Message::GamesPerfected => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected),
-            Message::AchievementCheckboxToggled(is_checked) => self.games_have_achievements_filter = is_checked,
+            Message::AchievementCheckboxToggled(is_checked) => {
+                self.games_have_achievements_filter = is_checked;
+            },
             Message::GenerateRandomAchievement(app_id) => {
                 let game = self.owned_games.iter().find(|g| g.appid == app_id).expect("Selected for a game that does not exist");
                 generate_random_achievement(game);

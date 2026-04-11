@@ -76,7 +76,7 @@ impl App {
     pub fn game_list_view(&self) -> Element<'_, Message> {
         let filter_games = {
             row![
-                button("In progress").on_press(Message::GamesInProgress).padding(5),
+                button("In progress").on_press(Message::GamesInProgress),
                 button("Completed").on_press(Message::GamesCompleted),
                 button("Perfected").on_press(Message::GamesPerfected),
             ]
@@ -87,6 +87,8 @@ impl App {
         let achievement_filter = checkbox(self.games_have_achievements_filter)
             .label("Has Achievements")
             .on_toggle(Message::AchievementCheckboxToggled);
+
+        let game_count = text("Number of games:".to_owned() + self.games.len().to_string().as_str());
 
         let table = {
             let bold = |header| {
@@ -107,9 +109,10 @@ impl App {
                 .separator_y(1)
         };
         column![
-            center_x(filter_games).padding(10),
-            center_x(achievement_filter).padding(10),
-            center_x(random_game).padding(10),
+            center_x(filter_games).padding(5),
+            center_x(achievement_filter).padding(5),
+            center_x(random_game).padding(5),
+            center_x(game_count).padding(5),
             center_y(scrollable(center_x(table)).spacing(10)).padding(10),
         ].into()
     }
