@@ -9,6 +9,8 @@ use iced::widget::{
 use iced::{Center, Left, Element, Font, font};
 use api::achievement_fetch;
 use std::env;
+use std::cmp::Ordering;
+use db::steam_id_store;
 
 #[derive(Debug, Clone)]
 pub struct GameDisplay {
@@ -18,8 +20,12 @@ pub struct GameDisplay {
 
 #[derive(Debug, Clone)]
 struct GameGoalDisplay {
+    // DISPLAY
     achievement_name: String,
     description: String,
+    // DATA
+    complete: bool,
+    goal: bool,
 }
 
 impl App {
@@ -37,7 +43,19 @@ impl App {
                         })
                     };
                     let columns = [
-                        table::column(bold("Achievements"), |goal: &GameGoalDisplay| text(&goal.achievement_name))
+                        table::column(bold("Achievements"), |goal: &GameGoalDisplay| text(&goal.achievement_name).style({
+                            if goal.complete {
+                                text::success
+                            }
+                            else {
+                                if goal.goal {
+                                    text::warning
+                                }
+                                else {
+                                    text::default
+                                }
+                            }
+                        }))
                             .align_x(Left)
                             .align_y(Center),
                         table::column(bold("Description"), |goal: &GameGoalDisplay| text(&goal.description))
@@ -66,14 +84,49 @@ impl App {
         if !self.game_views.contains_key(id) {
             let game = self.owned_games.iter().find(|o| &o.appid == id).expect("Selected a game that does not exist");
             let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
+            let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
             let runtime: tokio::runtime::Runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-            let goals = runtime.block_on(achievement_fetch::get_game_achievements(&key, &game.appid))
+            let player_achievements = runtime.block_on(achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid));
+
+            let mut goals: Vec<GameGoalDisplay> = runtime.block_on(achievement_fetch::get_game_achievements(&key, &game.appid))
                 .iter()
                 .map(|a| GameGoalDisplay {
                     achievement_name : a.display_name.clone(),
                     description: a.description.clone().unwrap_or("-".to_string()),
+                    complete: player_achievements.as_ref()
+                        .map(|p| p.achievements.iter()
+                            .find(|pa| pa.apiname == a.name)
+                            .map(|pa| pa.achieved == 1))
+                            .unwrap_or(None)
+                            .unwrap_or(false),
+                    goal: self.goals.iter().find(|g| g.game_name == game.name && g.achievement_name == a.display_name).is_some()
                 })
                 .collect();
+            goals.sort_by(|a,b| {
+                if a.complete && b.complete {
+                    Ordering::Equal
+                }
+                else if a.complete {
+                    Ordering::Greater
+                }
+                else if b.complete {
+                    Ordering::Less
+                }
+                else {
+                    if a.goal && b.goal {
+                        Ordering::Equal
+                    }
+                    else if a.goal {
+                        Ordering::Less
+                    }
+                    else if b.goal {
+                        Ordering::Greater
+                    }
+                    else {
+                        Ordering::Equal
+                    }
+                }
+            });
             let display = GameDisplay { 
                 game_name: game.name.clone(),
                 goals
