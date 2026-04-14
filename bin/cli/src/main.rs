@@ -50,29 +50,20 @@ struct Args {
     debug: bool,
 }
 
+struct Credentials {
+    key: String,
+    steam_id: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
     let args = Args::parse();
 
-    let key_var = env::var("STEAM_API_KEY");
-    if key_var.is_err() {
-        panic!("You need to set the environment variable STEAM_API_KEY with your API key")
-    }
-    let key = key_var.unwrap();
-
-    let steam_id= if let Some(id) = args.id {
-        steam_id_store::save_id(&id).expect("Failed to save the id");
-        println!("Saved your steam id, no need to use --id each time now. You can replace it by using --id again.");
-        id
-    }
-    else {
-        steam_id_store::get_id().expect("Failed to load a key, use --id first")
-    };
-
     if args.random_achievement {
-        let game = request_game_name(&key, &steam_id).await.expect("No game found for search");
+        let credentials = get_credentials(&args);
+        let game = request_game_name(&credentials.key, &credentials.steam_id).await.expect("No game found for search");
 
-        let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&key, &steam_id, &game).await;
+        let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&credentials.key, &credentials.steam_id, &game).await;
         if let Some(a) = random_achievement {
             println!("And your selected achievement is:");
             println!(
@@ -93,12 +84,13 @@ async fn main() -> Result<(), reqwest::Error> {
     }
     else if args.random_game {
         // Fetch games
-        let mut owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
+        let credentials = get_credentials(&args);
+        let mut owned_games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
         let mut game_and_achievement: Option<(game_fetch::Game, GameAchievement)> = None;
         while !owned_games.is_empty() {
             let index = (rand::random::<f32>() * owned_games.len() as f32).floor() as usize;
             let random_game = owned_games.remove(index);
-            let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&key, &steam_id, &random_game).await;
+            let random_achievement: Option<GameAchievement> = goals::get_random_achievement_for_game(&credentials.key, &credentials.steam_id, &random_game).await;
             if let Some(a) = random_achievement {
                 game_and_achievement = Some((random_game, a));
                 break;
@@ -126,9 +118,10 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     }
     else if args.goals {
-        let owned_games: HashMap<i32, game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await.iter().map(|n| (n.appid, n.clone())).collect();
+        let credentials = get_credentials(&args);
+        let owned_games: HashMap<i32, game_fetch::Game> = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await.iter().map(|n| (n.appid, n.clone())).collect();
         // Print all completed achievements!
-        let completed_achievement = goals::get_and_sync_completed_achievements(&key, &steam_id).await;
+        let completed_achievement = goals::get_and_sync_completed_achievements(&credentials.key, &credentials.steam_id).await;
         for ca in completed_achievement {
             println!("Well done! You completed {game} : {name}", game = owned_games.get(&ca.app_id).expect("Achievement completed for unowned game?!?").name, name = ca.display_name);
         }
@@ -153,8 +146,9 @@ async fn main() -> Result<(), reqwest::Error> {
     }
     else if args.completed_games {
         // Get full game list
-        let games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
-        goals::refresh_game_completion_cache(&key, &steam_id, &games).await;
+        let credentials = get_credentials(&args);
+        let games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
+        goals::refresh_game_completion_cache(&credentials.key, &credentials.steam_id, &games).await;
         let completed_games: Vec<game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion_above_or_equal(100).expect("Failed to load completed games");
         for g in completed_games {
             let game = games.iter().find(|game| game.appid == g.app_id).unwrap();
@@ -163,8 +157,9 @@ async fn main() -> Result<(), reqwest::Error> {
     }
     else if args.game_completion_list {
         // Get full game list
-        let games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&key, &steam_id).await;
-        goals::refresh_game_completion_cache(&key, &steam_id, &games).await;
+        let credentials = get_credentials(&args);
+        let games: Vec<game_fetch::Game> = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
+        goals::refresh_game_completion_cache(&credentials.key, &credentials.steam_id, &games).await;
         let progressed_games: Vec<game_completion_cache::GameCompletion> = game_completion_cache::get_game_completion_above_or_equal(1).expect("Failed to load completed games");
         for g in progressed_games {
             if g.complete != 100 {
@@ -183,6 +178,25 @@ async fn main() -> Result<(), reqwest::Error> {
         println!("Request count {count}", count = request_count);
     }
     Ok(())
+}
+
+fn get_credentials(args: &Args) -> Credentials {
+    let key_var = env::var("STEAM_API_KEY");
+    if key_var.is_err() {
+        panic!("You need to set the environment variable STEAM_API_KEY with your API key")
+    }
+    let key = key_var.unwrap();
+
+    let steam_id= if let Some(id) = &args.id {
+        steam_id_store::save_id(&id).expect("Failed to save the id");
+        println!("Saved your steam id, no need to use --id each time now. You can replace it by using --id again.");
+        id.clone()
+    }
+    else {
+        steam_id_store::get_id().expect("Failed to load a key, use --id first")
+    };
+
+    Credentials { key, steam_id }
 }
 
 async fn request_game_name(key : &str, steam_id : &str) -> Option<game_fetch::Game> {
