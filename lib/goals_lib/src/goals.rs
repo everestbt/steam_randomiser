@@ -1,5 +1,5 @@
 use api::{achievement_fetch::{self, GameAchievement}, game_fetch};
-use db::{achievement_store, excluded_achievement_store, game_completion_cache};
+use db::{achievement_store, excluded_achievement_store, game_completion_cache, game_target_store};
 
 use std::{collections::HashMap};
 use rand::prelude::*;
@@ -98,8 +98,18 @@ pub async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &
         // Get the achievements completed for that game
         let player_achievements = achievement_fetch::get_player_achievements(key, steam_id, &game.appid).await;
         if player_achievements.is_none() {
-            // Game has no achievements, save it as completed
-            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, false, true).expect("Failed to save game completion");
+            // Game has no achievements check if it is marked as completed or not
+            if let Some(target) = game_target_store::get_game_target(&game.appid).expect("Failed to load game target") {
+                if target.complete {
+                    game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, false, true).expect("Failed to save game completion");
+                }
+                else {
+                    game_completion_cache::save_game_completion(&game.appid, 0, game.last_played, false, false).expect("Failed to save game completion");
+                }
+            }
+            else {
+                game_completion_cache::save_game_completion(&game.appid, 0, game.last_played, false, false).expect("Failed to save game completion");
+            }
             continue;
         }
         let p = player_achievements.unwrap();
@@ -110,6 +120,11 @@ pub async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &
         if unachieved.is_empty() {
             game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, true, true)
                 .expect("Failed to save game completion");
+        }
+        else if let Some(target) = game_target_store::get_game_target(&game.appid).expect("Failed to load game target") {
+            if target.complete {
+                game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, false, false).expect("Failed to save game completion");
+            }
         }
         else {
             // Check for any excluded achievements

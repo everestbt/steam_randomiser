@@ -15,6 +15,7 @@ use db::{
     steam_id_store,
     game_completion_cache::{self, GameCompletion},
     achievement_store,
+    game_target_store,
 };
 use goals_lib::goals;
 use game_view::GameDisplay;
@@ -36,6 +37,8 @@ enum Message {
     GamesPerfected,
     AchievementCheckboxToggled(bool),
     GenerateRandomAchievement(i32), // app_id
+    SetAsGameTarget(i32), // app_id
+    SetGameAsComplete(i32), // app_id
     RandomGame,
 }
 
@@ -92,6 +95,18 @@ impl App {
                 let game = self.owned_games.iter().find(|g| g.appid == app_id).expect("Selected for a game that does not exist");
                 generate_random_achievement(game);
                 self.goals = Goal::list();
+            },
+            Message::SetAsGameTarget(app_id) => {
+                game_target_store::save_game_target(&app_id, &false).expect("Failed to save target");
+                if let Some(view) = self.game_views.get_mut(&app_id) {
+                    view.target = true;
+                }
+            },
+            Message::SetGameAsComplete(app_id) => {
+                game_target_store::save_game_target(&app_id, &true).expect("Failed to save target");
+                if let Some(view) = self.game_views.get_mut(&app_id) {
+                    view.complete = true;
+                }
             },
             Message::RandomGame => {
                 let random_game_id = self.games.get(rand::random_range(..self.games.len())).unwrap().id.clone();

@@ -10,11 +10,16 @@ use iced::{Center, Left, Element, Font, font};
 use api::achievement_fetch;
 use std::env;
 use std::cmp::Ordering;
-use db::steam_id_store;
+use db::{
+    steam_id_store,
+    game_target_store,
+};
 
 #[derive(Debug, Clone)]
 pub struct GameDisplay {
     pub game_name: String,
+    pub target: bool,
+    pub complete: bool,
     goals: Vec<GameGoalDisplay>,
 }
 
@@ -33,7 +38,28 @@ impl App {
         match self.view {
             View::Game(app_id) => {
                 let game = self.game_views.get(&app_id).expect("Should have been inserted on message processing");
+                let game_target_button = {
+                    if !game.target {
+                        Some(button("Target!").on_press(Message::SetAsGameTarget(app_id)))
+                    }
+                    else if !game.complete {
+                        Some(button("Set as complete!").on_press(Message::SetGameAsComplete(app_id)))
+                    }
+                    else {
+                        None
+                    }
+                };
                 let random_achievement = button("Random achievement!").on_press(Message::GenerateRandomAchievement(app_id));
+
+                let controls = if let Some(target) = game_target_button {
+                    column![
+                        center_x(target),
+                        center_x(random_achievement),
+                    ]
+                }
+                else {
+                    column![random_achievement]
+                };
 
                 let table = {
                     let bold = |header| {
@@ -71,8 +97,8 @@ impl App {
                 };
 
                 column![
-                    center_x(random_achievement),
                     center_x(text(game.game_name.clone())),
+                    center_x(controls),
                     center_y(scrollable(center_x(table)).spacing(10)).padding(10),
                 ].into()
             },
@@ -127,9 +153,12 @@ impl App {
                     }
                 }
             });
+            let target = game_target_store::get_game_target(id).expect("Failed to load target");
             let display = GameDisplay { 
                 game_name: game.name.clone(),
-                goals
+                goals,
+                target: target.is_some(),
+                complete: target.map(|t| t.complete).unwrap_or(false),
             };
             self.game_views.insert(id.clone(), display);
         }

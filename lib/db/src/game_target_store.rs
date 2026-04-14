@@ -12,7 +12,7 @@ pub fn get_game_targets() -> Result<Vec<GameTarget>> {
     create_table(&conn)?;
 
     let mut stmt = conn.prepare("SELECT app_id, complete FROM game_targets")?;
-    let achieve_iter = stmt.query_map([], |row| {
+    let iter = stmt.query_map([], |row| {
         Ok(GameTarget {
             app_id: row.get(0)?,
             complete: row.get(1)?,
@@ -21,7 +21,7 @@ pub fn get_game_targets() -> Result<Vec<GameTarget>> {
 
     let mut vec : Vec<GameTarget> = Vec::new();
     let mut error = None;
-    for result in achieve_iter {
+    for result in iter {
         match result {
             Ok(target) => vec.push(target),
             Err(e) =>  {
@@ -35,6 +35,29 @@ pub fn get_game_targets() -> Result<Vec<GameTarget>> {
     }
     else {
         Ok(vec)
+    }
+}
+
+pub fn get_game_target(app_id: &i32) -> Result<Option<GameTarget>> {
+    let conn: Connection = db_manager::get_connection();
+    create_table(&conn)?;
+
+    let mut stmt = conn.prepare("SELECT app_id, complete FROM game_targets WHERE app_id=?1 LIMIT 1")?;
+    let mut iter = stmt.query_map([app_id], |row| {
+        Ok(GameTarget {
+            app_id: row.get(0)?,
+            complete: row.get(1)?,
+        })
+    })?;
+
+    if let Some(result) = iter.next() {
+        match result {
+            Ok(target) => Ok(Some(target)),
+            Err(error) => Err(error)
+        }
+    }
+    else {
+        Ok(None)
     }
 }
 
