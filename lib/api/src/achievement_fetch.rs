@@ -35,6 +35,8 @@ pub struct GameAchievement {
     #[serde(rename = "displayName")]
     pub display_name: String,
     pub description: Option<String>,
+    pub icon: String,
+    pub icongray: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

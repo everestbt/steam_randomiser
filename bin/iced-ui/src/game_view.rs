@@ -4,7 +4,7 @@ use crate::View;
 use crate::Message;
 
 use iced::widget::{
-    center_x, center_y, column, text, button, table, scrollable
+    center_x, center_y, column, text, button, table, scrollable, image, image::Handle
 };
 use iced::{Center, Left, Element, Font, font};
 use api::achievement_fetch;
@@ -14,6 +14,8 @@ use db::{
     steam_id_store,
     game_target_store,
 };
+use rayon::prelude::*;
+use bytes::Bytes;
 
 #[derive(Debug, Clone)]
 pub struct GameDisplay {
@@ -28,6 +30,7 @@ struct GameGoalDisplay {
     // DISPLAY
     achievement_name: String,
     description: String,
+    image: Bytes,
     // DATA
     complete: bool,
     goal: bool,
@@ -69,7 +72,10 @@ impl App {
                         })
                     };
                     let columns = [
-                        table::column(bold("Achievements"), |goal: &GameGoalDisplay| text(&goal.achievement_name).style({
+                        table::column(bold("Icon"), |goal: &GameGoalDisplay| image(Handle::from_bytes(goal.image.clone())))
+                            .align_x(Left)
+                            .align_y(Center),
+                        table::column(bold("Achievement"), |goal: &GameGoalDisplay| text(&goal.achievement_name).style({
                             if goal.complete {
                                 text::success
                             }
@@ -115,17 +121,29 @@ impl App {
             let player_achievements = runtime.block_on(achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid));
 
             let mut goals: Vec<GameGoalDisplay> = runtime.block_on(achievement_fetch::get_game_achievements(&key, &game.appid))
-                .iter()
-                .map(|a| GameGoalDisplay {
-                    achievement_name : a.display_name.clone(),
-                    description: a.description.clone().unwrap_or("-".to_string()),
-                    complete: player_achievements.as_ref()
-                        .map(|p| p.achievements.iter()
-                            .find(|pa| pa.apiname == a.name)
-                            .map(|pa| pa.achieved == 1))
-                            .unwrap_or(None)
-                            .unwrap_or(false),
-                    goal: self.goals.iter().find(|g| g.game_name == game.name && g.achievement_name == a.display_name).is_some()
+                .par_iter()
+                .map(|a| {
+                    let complete = player_achievements.as_ref()
+                            .map(|p| p.achievements.iter()
+                                .find(|pa| pa.apiname == a.name)
+                                .map(|pa| pa.achieved == 1))
+                                .unwrap_or(None)
+                                .unwrap_or(false);
+
+                    let img_bytes = if complete {
+                        reqwest::blocking::get(a.icon.clone()).expect("Failed to load url").bytes().expect("Failed to read bytes")
+                    }
+                    else {
+                        reqwest::blocking::get(a.icongray.clone()).expect("Failed to load url").bytes().expect("Failed to read bytes")
+                    };
+
+                    GameGoalDisplay {
+                        achievement_name : a.display_name.clone(),
+                        description: a.description.clone().unwrap_or("-".to_string()),
+                        image: img_bytes,
+                        complete,
+                        goal: self.goals.iter().find(|g| g.game_name == game.name && g.achievement_name == a.display_name).is_some()
+                    }
                 })
                 .collect();
             goals.sort_by(|a,b| {

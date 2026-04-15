@@ -12,6 +12,9 @@ tokio.workspace = true
 rand.workspace = true
 iced.workspace = true
 color-eyre.workspace = true
+reqwest.workspace = true
+rayon.workspace = true
+bytes.workspace = true
 
 [[bin]]
 path = "src/main.rs"
