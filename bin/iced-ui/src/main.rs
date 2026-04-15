@@ -32,6 +32,7 @@ enum Message {
     GamesView,
     GameView(i32), //app_id
     GoalsView,
+    GamesTargets,
     GamesInProgress,
     GamesCompleted,
     GamesPerfected,
@@ -85,6 +86,7 @@ impl App {
                 self.view = View::Game(id);
             },
             Message::GoalsView => self.view = View::Goals,
+            Message::GamesTargets => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Targets),
             Message::GamesInProgress => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress),
             Message::GamesCompleted => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed),
             Message::GamesPerfected => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected),
