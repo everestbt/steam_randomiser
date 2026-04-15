@@ -3,13 +3,14 @@ use super::App;
 use crate::View;
 use crate::Message;
 
+use db::excluded_achievement_store;
 use iced::widget::{
     center_x, center_y, column, text, button, table, scrollable, image, image::Handle
 };
 use iced::{Center, Left, Element, Font, font};
 use api::achievement_fetch;
 use std::env;
-use std::cmp::Ordering;
+use std::collections::HashSet;
 use db::{
     steam_id_store,
     game_target_store,
@@ -25,6 +26,14 @@ pub struct GameDisplay {
     goals: Vec<GameGoalDisplay>,
 }
 
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
+enum GoalState {
+    Goal,
+    Incomplete,
+    Complete,
+    Excluded,
+}
+
 #[derive(Debug, Clone)]
 struct GameGoalDisplay {
     // DISPLAY
@@ -32,8 +41,7 @@ struct GameGoalDisplay {
     description: String,
     image: Bytes,
     // DATA
-    complete: bool,
-    goal: bool,
+    goal_state: GoalState,
 }
 
 impl App {
@@ -76,16 +84,11 @@ impl App {
                             .align_x(Left)
                             .align_y(Center),
                         table::column(bold("Achievement"), |goal: &GameGoalDisplay| text(&goal.achievement_name).style({
-                            if goal.complete {
-                                text::success
-                            }
-                            else {
-                                if goal.goal {
-                                    text::warning
-                                }
-                                else {
-                                    text::default
-                                }
+                            match goal.goal_state {
+                                GoalState::Complete => text::success,
+                                GoalState::Incomplete => text::default,
+                                GoalState::Goal => text::warning,
+                                GoalState::Excluded => text::danger,
                             }
                         }))
                             .align_x(Left)
@@ -118,19 +121,36 @@ impl App {
             let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
             let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
             let runtime: tokio::runtime::Runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-            let player_achievements = runtime.block_on(achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid));
+            let player_achievements = runtime.block_on(achievement_fetch::get_player_achievements(&key, &steam_id, &game.appid));   
+            let excluded_achievements: HashSet<String> = excluded_achievement_store::get_excluded_achievements_for_app(id).expect("Failed to load excluded achievements")
+                .iter()
+                .map(|a| a.achievement_name.clone())
+                .collect();
 
             let mut goals: Vec<GameGoalDisplay> = runtime.block_on(achievement_fetch::get_game_achievements(&key, &game.appid))
                 .par_iter()
                 .map(|a| {
-                    let complete = player_achievements.as_ref()
+                    let goal_state = {
+                        if player_achievements.as_ref()
                             .map(|p| p.achievements.iter()
                                 .find(|pa| pa.apiname == a.name)
                                 .map(|pa| pa.achieved == 1))
                                 .unwrap_or(None)
-                                .unwrap_or(false);
+                                .unwrap_or(false) {
+                            GoalState::Complete
+                        }
+                        else if excluded_achievements.contains(&a.name) {
+                            GoalState::Excluded
+                        }
+                        else if self.goals.iter().find(|g| g.game_name == game.name && g.achievement_name == a.display_name).is_some() {
+                            GoalState::Goal
+                        }
+                        else {
+                            GoalState::Incomplete
+                        }
+                    };
 
-                    let img_bytes = if complete {
+                    let img_bytes = if goal_state == GoalState::Complete {
                         reqwest::blocking::get(a.icon.clone()).expect("Failed to load url").bytes().expect("Failed to read bytes")
                     }
                     else {
@@ -141,36 +161,11 @@ impl App {
                         achievement_name : a.display_name.clone(),
                         description: a.description.clone().unwrap_or("-".to_string()),
                         image: img_bytes,
-                        complete,
-                        goal: self.goals.iter().find(|g| g.game_name == game.name && g.achievement_name == a.display_name).is_some()
+                        goal_state,
                     }
                 })
                 .collect();
-            goals.sort_by(|a,b| {
-                if a.complete && b.complete {
-                    Ordering::Equal
-                }
-                else if a.complete {
-                    Ordering::Greater
-                }
-                else if b.complete {
-                    Ordering::Less
-                }
-                else {
-                    if a.goal && b.goal {
-                        Ordering::Equal
-                    }
-                    else if a.goal {
-                        Ordering::Less
-                    }
-                    else if b.goal {
-                        Ordering::Greater
-                    }
-                    else {
-                        Ordering::Equal
-                    }
-                }
-            });
+            goals.sort_by_key(|g| g.goal_state);
             let target = game_target_store::get_game_target(id).expect("Failed to load target");
             let display = GameDisplay { 
                 game_name: game.name.clone(),
