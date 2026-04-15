@@ -16,6 +16,7 @@ use db::{
     game_completion_cache::{self, GameCompletion},
     achievement_store,
     game_target_store,
+    excluded_achievement_store,
 };
 use goals_lib::goals;
 use game_view::GameDisplay;
@@ -41,6 +42,7 @@ enum Message {
     SetAsGameTarget(i32), // app_id
     SetGameAsComplete(i32), // app_id
     RandomGame,
+    ExcludeAchievement(i32, String) // app_id, achievement_name
 }
 
 #[derive(Debug, Clone, Default)]
@@ -114,6 +116,14 @@ impl App {
                 let random_game_id = self.games.get(rand::random_range(..self.games.len())).unwrap().id.clone();
                 self.load_game_display(&random_game_id);
                 self.view = View::Game(random_game_id);
+            },
+            Message::ExcludeAchievement(app_id, achievement_name) => {
+                excluded_achievement_store::save_excluded_achievement(&achievement_name, &app_id).expect("Failed to exclude achievement");
+                if let Some(game_view) = self.game_views.get_mut(&app_id) {
+                    if let Some(achievement) = game_view.goals.iter_mut().find(|a| a.achievement_name == achievement_name) {
+                        achievement.goal_state = game_view::GoalState::Excluded;
+                    }
+                }
             }
         }
     }

@@ -23,11 +23,11 @@ pub struct GameDisplay {
     pub game_name: String,
     pub target: bool,
     pub complete: bool,
-    goals: Vec<GameGoalDisplay>,
+    pub goals: Vec<GameGoalDisplay>,
 }
 
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
-enum GoalState {
+pub enum GoalState {
     Goal,
     Incomplete,
     Complete,
@@ -35,13 +35,14 @@ enum GoalState {
 }
 
 #[derive(Debug, Clone)]
-struct GameGoalDisplay {
+pub struct GameGoalDisplay {
     // DISPLAY
-    achievement_name: String,
+    display_name: String,
     description: String,
     image: Bytes,
     // DATA
-    goal_state: GoalState,
+    pub goal_state: GoalState,
+    pub achievement_name: String,
 }
 
 impl App {
@@ -83,7 +84,7 @@ impl App {
                         table::column(bold("Icon"), |goal: &GameGoalDisplay| image(Handle::from_bytes(goal.image.clone())))
                             .align_x(Left)
                             .align_y(Center),
-                        table::column(bold("Achievement"), |goal: &GameGoalDisplay| text(&goal.achievement_name).style({
+                        table::column(bold("Achievement"), |goal: &GameGoalDisplay| text(&goal.display_name).style({
                             match goal.goal_state {
                                 GoalState::Complete => text::success,
                                 GoalState::Incomplete => text::default,
@@ -94,6 +95,9 @@ impl App {
                             .align_x(Left)
                             .align_y(Center),
                         table::column(bold("Description"), |goal: &GameGoalDisplay| text(&goal.description))
+                            .align_x(Left)
+                            .align_y(Center),
+                        table::column(bold("Exclude"), |goal: &GameGoalDisplay| button("Exclude").on_press(Message::ExcludeAchievement(app_id.clone(), goal.achievement_name.clone())))
                             .align_x(Left)
                             .align_y(Center),
                     ];
@@ -158,10 +162,11 @@ impl App {
                     };
 
                     GameGoalDisplay {
-                        achievement_name : a.display_name.clone(),
+                        display_name : a.display_name.clone(),
                         description: a.description.clone().unwrap_or("-".to_string()),
                         image: img_bytes,
                         goal_state,
+                        achievement_name: a.name.clone(),
                     }
                 })
                 .collect();
