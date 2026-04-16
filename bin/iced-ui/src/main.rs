@@ -6,7 +6,7 @@ use iced::widget::{
     center_x, column, row, button,
 };
 use iced::{Element, Theme};
-use games_list_view::{GameListDisplay, GameListFilter};
+use games_list_view::{GameListDisplay, GameListFilter, GameListView};
 use goals_view::Goal;
 use api::game_fetch::{self, Game};
 use std::env;
@@ -37,6 +37,7 @@ enum Message {
     GamesInProgress,
     GamesCompleted,
     GamesPerfected,
+    GamesGrid,
     AchievementCheckboxToggled(bool),
     GenerateRandomAchievement(i32), // app_id
     SetAsGameTarget(i32), // app_id
@@ -45,11 +46,10 @@ enum Message {
     ExcludeAchievement(i32, String) // app_id, achievement_name
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 enum View {
     Goals,
-    #[default]
-    Games,
+    Games(GameListView),
     Game(i32), // app_id
 }
 
@@ -70,8 +70,8 @@ impl App {
     fn new() -> Self {
         let data = load_data();
         Self {
-            view: View::default(),
-            games: GameListDisplay::list(&data.owned_games, &data.completed_games_cache, true, GameListFilter::default()),
+            view: View::Games(GameListView::List),
+            games: GameListDisplay::list(&data.owned_games, &data.completed_games_cache, true, GameListFilter::default(), &GameListView::List),
             games_have_achievements_filter: true,
             goals: Goal::list(),
             game_views: HashMap::new(),
@@ -82,16 +82,40 @@ impl App {
 
     fn update(&mut self, message: Message) {
         match message {
-            Message::GamesView => self.view = View::Games,
+            Message::GamesView => self.view = View::Games(GameListView::default()),
             Message::GameView(id) => {
                 self.load_game_display(&id);
                 self.view = View::Game(id);
             },
             Message::GoalsView => self.view = View::Goals,
-            Message::GamesTargets => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Targets),
-            Message::GamesInProgress => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress),
-            Message::GamesCompleted => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed),
-            Message::GamesPerfected => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected),
+            Message::GamesTargets => {
+                match &self.view {
+                    View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Targets, view),
+                    _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Targets, &GameListView::default())
+                };
+            },
+            Message::GamesInProgress => {
+                match &self.view {
+                    View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress, view),
+                    _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress, &GameListView::default())
+                };
+            },
+            Message::GamesCompleted => {
+                match &self.view {
+                    View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed, view),
+                    _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed, &GameListView::default())
+                };
+            },
+            Message::GamesPerfected => {
+                match &self.view {
+                    View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected, view),
+                    _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected, &GameListView::default())
+                };
+            },
+            Message::GamesGrid => {
+                self.view = View::Games(GameListView::Grid);
+                self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::None, &GameListView::Grid);
+            }
             Message::AchievementCheckboxToggled(is_checked) => {
                 self.games_have_achievements_filter = is_checked;
             },
@@ -136,9 +160,9 @@ impl App {
             ]
         };
 
-        let main_view = match self.view {
+        let main_view = match &self.view {
             View::Goals => self.goal_view(),
-            View::Games => self.game_list_view(),
+            View::Games(view) => self.game_list_view(&view),
             View::Game(_) => self.game_view(),
         };
 
