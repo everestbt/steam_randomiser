@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use db::{
     steam_id_store,
     game_completion_cache::{self, GameCompletion},
-    achievement_store,
     game_target_store,
     excluded_achievement_store,
 };
@@ -53,6 +52,11 @@ enum View {
     Game(i32), // app_id
 }
 
+struct Credentials {
+    key: String,
+    steam_id: String,
+}
+
 struct App {
     // SETTINGS
     view: View,
@@ -62,6 +66,7 @@ struct App {
     goals: Vec<Goal>,
     game_views : HashMap<i32, GameDisplay>,
     // DATA
+    credentials: Credentials,
     owned_games: Vec<Game>,
     completed_games_cache: HashMap<i32, GameCompletion>,
 }
@@ -75,6 +80,10 @@ impl App {
             games_have_achievements_filter: true,
             goals: Goal::list(),
             game_views: HashMap::new(),
+            credentials: Credentials { 
+                key: env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key"), 
+                steam_id: steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first")
+            },
             owned_games: data.owned_games,
             completed_games_cache: data.completed_games_cache,
         }
@@ -119,11 +128,7 @@ impl App {
             Message::AchievementCheckboxToggled(is_checked) => {
                 self.games_have_achievements_filter = is_checked;
             },
-            Message::GenerateRandomAchievement(app_id) => {
-                let game = self.owned_games.iter().find(|g| g.appid == app_id).expect("Selected for a game that does not exist");
-                generate_random_achievement(game);
-                self.goals = Goal::list();
-            },
+            Message::GenerateRandomAchievement(ref app_id) => self.generate_random_achievement(app_id),
             Message::SetAsGameTarget(app_id) => {
                 game_target_store::save_game_target(&app_id, &false).expect("Failed to save target");
                 if let Some(view) = self.game_views.get_mut(&app_id) {
@@ -195,15 +200,5 @@ fn load_data() -> DataLoad {
     DataLoad { 
         owned_games,
         completed_games_cache,
-    }
-}
-
-fn generate_random_achievement(game: &Game) {
-    let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
-    let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
-    let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-    let random_achievement = runtime.block_on(goals::get_random_achievement_for_game(&key, &steam_id, game));
-    if let Some(a) = random_achievement {
-        achievement_store::save_achievement(&a.name, &a.display_name, &a.description, &game.appid, &game.last_played).expect("Failed to save achievement");
     }
 }

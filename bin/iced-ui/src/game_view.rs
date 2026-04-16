@@ -2,6 +2,7 @@ use super::App;
 
 use crate::View;
 use crate::Message;
+use crate::goals_view::Goal;
 
 use db::excluded_achievement_store;
 use iced::widget::{
@@ -14,9 +15,11 @@ use std::collections::HashSet;
 use db::{
     steam_id_store,
     game_target_store,
+    achievement_store,
 };
 use rayon::prelude::*;
 use bytes::Bytes;
+use goals_lib::goals;
 
 #[derive(Debug, Clone)]
 pub struct GameDisplay {
@@ -179,6 +182,21 @@ impl App {
                 complete: target.map(|t| t.complete).unwrap_or(false),
             };
             self.game_views.insert(id.clone(), display);
+        }
+    }
+
+    pub fn generate_random_achievement(&mut self, app_id: &i32) {
+        let game = self.owned_games.iter().find(|g| &g.appid == app_id).expect("Selected for a game that does not exist");
+        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let random_achievement = runtime.block_on(goals::get_random_achievement_for_game(&self.credentials.key, &self.credentials.steam_id, game));
+        if let Some(ra) = random_achievement {
+            achievement_store::save_achievement(&ra.name, &ra.display_name, &ra.description, &game.appid, &game.last_played).expect("Failed to save achievement");
+            self.goals = Goal::list();
+            if let Some(game_view) = self.game_views.get_mut(&app_id) {
+                if let Some(achievement) = game_view.goals.iter_mut().find(|a| a.achievement_name == ra.name) {
+                    achievement.goal_state = GoalState::Goal;
+                }
+            }
         }
     }
 }
