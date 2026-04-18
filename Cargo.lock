@@ -2422,6 +2422,7 @@ dependencies = [
  "rand 0.10.1",
  "rayon",
  "reqwest",
+ "simple-error",
  "tokio",
 ]
 
@@ -2464,6 +2465,7 @@ dependencies = [
  "iced_core",
  "log",
  "rustc-hash 2.1.2",
+ "tokio",
  "wasm-bindgen-futures",
  "wasmtimer",
 ]
@@ -4910,6 +4912,12 @@ name = "simdutf8"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
+name = "simple-error"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69da7c8ef9e55986dcaa55dd095bbf7d321e80cc91644f25ce26a83dbe9e7f14"
 
 [[package]]
 name = "siphasher"

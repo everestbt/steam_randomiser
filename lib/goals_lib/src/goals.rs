@@ -1,4 +1,4 @@
-use api::{achievement_fetch::{self, GameAchievement}, game_fetch};
+use api::{achievement_fetch::{self, GameAchievement}, game_fetch, game_fetch::Game};
 use db::{achievement_store, excluded_achievement_store, game_completion_cache, game_target_store};
 
 use std::{collections::HashMap};
@@ -39,7 +39,7 @@ pub async fn get_and_sync_completed_achievements(key : &str, steam_id : &str) ->
     achievement_completed
 }
 
-pub async fn get_random_achievement_for_game(key : &str, steam_id : &str, game: &game_fetch::Game) -> Option<GameAchievement> {
+pub async fn get_random_achievement_for_game(key : &str, steam_id : &str, game: &Game) -> Option<GameAchievement> {
     // Get the achievements for a specific game
         let achievements = achievement_fetch::get_player_achievements(key, steam_id, &game.appid).await;
         if let Some(a) = achievements {

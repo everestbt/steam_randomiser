@@ -3,13 +3,19 @@ use super::App;
 use crate::View;
 use crate::Message;
 use crate::goals_view::Goal;
+use crate::Credentials;
 
 use db::excluded_achievement_store;
 use iced::widget::{
     center_x, center_y, column, text, button, table, scrollable, image, image::Handle
 };
 use iced::{Center, Left, Element, Font, font};
-use api::achievement_fetch;
+use api::{
+    achievement_fetch,
+    achievement_fetch::GameAchievement,
+    game_fetch,
+    game_fetch::Game,
+};
 use std::env;
 use std::collections::HashSet;
 use db::{
@@ -20,6 +26,7 @@ use db::{
 use rayon::prelude::*;
 use bytes::Bytes;
 use goals_lib::goals;
+use simple_error::SimpleError;
 
 #[derive(Debug, Clone)]
 pub struct GameDisplay {
@@ -185,18 +192,28 @@ impl App {
         }
     }
 
-    pub fn generate_random_achievement(&mut self, app_id: &i32) {
-        let game = self.owned_games.iter().find(|g| &g.appid == app_id).expect("Selected for a game that does not exist");
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        let random_achievement = runtime.block_on(goals::get_random_achievement_for_game(&self.credentials.key, &self.credentials.steam_id, game));
+    pub fn handle_generated_random_achievement(&mut self, game: Game, random_achievement: Option<GameAchievement>) {
         if let Some(ra) = random_achievement {
             achievement_store::save_achievement(&ra.name, &ra.display_name, &ra.description, &game.appid, &game.last_played).expect("Failed to save achievement");
-            self.goals = Goal::list();
-            if let Some(game_view) = self.game_views.get_mut(app_id) {
+            self.goals.push(Goal {
+                game_name: game.name.clone(),
+                achievement_name: ra.display_name,
+                description: ra.description.unwrap_or("-".to_string())
+            });
+            if let Some(game_view) = self.game_views.get_mut(&game.appid) {
                 if let Some(achievement) = game_view.goals.iter_mut().find(|a| a.achievement_name == ra.name) {
                     achievement.goal_state = GoalState::Goal;
                 }
             }
         }
+    }
+}
+
+pub async fn generate_random_achievement(credentials: Credentials, app_id: i32) -> Result<(Game, Option<GameAchievement>), SimpleError> {
+    if let Some(game) = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await.iter().find(|g| g.appid == app_id) {
+        Ok((game.clone(), goals::get_random_achievement_for_game(&credentials.key, &credentials.steam_id, game).await))
+    }
+    else {
+        Err(SimpleError::new("No game with that app_id"))
     }
 }

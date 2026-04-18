@@ -5,10 +5,11 @@ mod game_view;
 use iced::widget::{
     center_x, column, row, button,
 };
-use iced::{Element, Theme};
+use iced::{Element, Theme, Task};
 use games_list_view::{GameListDisplay, GameListFilter, GameListView};
 use goals_view::Goal;
 use api::game_fetch::{self, Game};
+use simple_error::SimpleError;
 use std::env;
 use std::collections::HashMap;
 use db::{
@@ -19,6 +20,7 @@ use db::{
 };
 use goals_lib::goals;
 use game_view::GameDisplay;
+use api::achievement_fetch::GameAchievement;
 
 pub fn main() -> iced::Result {
     color_eyre::install().expect("Failed to install color eyre");
@@ -39,6 +41,7 @@ enum Message {
     GamesGrid,
     AchievementCheckboxToggled(bool),
     GenerateRandomAchievement(i32), // app_id
+    RandomAchievementGenerated(Result<(Game, Option<GameAchievement>), SimpleError>), 
     SetAsGameTarget(i32), // app_id
     SetGameAsComplete(i32), // app_id
     RandomGame,
@@ -52,6 +55,7 @@ enum View {
     Game(i32), // app_id
 }
 
+#[derive(Debug, Clone)]
 struct Credentials {
     key: String,
     steam_id: String,
@@ -89,62 +93,87 @@ impl App {
         }
     }
 
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::GamesView => self.view = View::Games(GameListView::default()),
+            Message::GamesView => {
+                self.view = View::Games(GameListView::default());
+                Task::none()
+            },
             Message::GameView(id) => {
                 self.load_game_display(&id);
                 self.view = View::Game(id);
+                Task::none()
             },
-            Message::GoalsView => self.view = View::Goals,
+            Message::GoalsView => {
+                self.view = View::Goals;
+                Task::none()
+            },
             Message::GamesTargets => {
                 match &self.view {
                     View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Targets, view),
                     _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Targets, &GameListView::default())
                 };
+                Task::none()
             },
             Message::GamesInProgress => {
                 match &self.view {
                     View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress, view),
                     _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress, &GameListView::default())
                 };
+                Task::none()
             },
             Message::GamesCompleted => {
                 match &self.view {
                     View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed, view),
                     _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed, &GameListView::default())
                 };
+                Task::none()
             },
             Message::GamesPerfected => {
                 match &self.view {
                     View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected, view),
                     _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected, &GameListView::default())
                 };
+                Task::none()
             },
             Message::GamesGrid => {
                 self.view = View::Games(GameListView::Grid);
                 self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::None, &GameListView::Grid);
+                Task::none()
             }
             Message::AchievementCheckboxToggled(is_checked) => {
                 self.games_have_achievements_filter = is_checked;
+                Task::none()
             },
-            Message::GenerateRandomAchievement(ref app_id) => self.generate_random_achievement(app_id),
+            Message::GenerateRandomAchievement(ref app_id) => Task::perform(game_view::generate_random_achievement(self.credentials.clone(), app_id.clone()), Message::RandomAchievementGenerated),
+            Message::RandomAchievementGenerated(random_achievement) => {
+                if let Ok(r) = random_achievement {
+                    self.handle_generated_random_achievement(r.0, r.1);
+                }
+                else {
+                    panic!("{}", random_achievement.unwrap_err().as_str())
+                }
+                Task::none()
+            },
             Message::SetAsGameTarget(app_id) => {
                 game_target_store::save_game_target(&app_id, &false).expect("Failed to save target");
                 if let Some(view) = self.game_views.get_mut(&app_id) {
                     view.target = true;
                 }
+                Task::none()
             },
             Message::SetGameAsComplete(app_id) => {
                 game_target_store::save_game_target(&app_id, &true).expect("Failed to save target");
                 if let Some(view) = self.game_views.get_mut(&app_id) {
                     view.complete = true;
                 }
+                Task::none()
             },
             Message::RandomGame => {
                 let random_game_id = self.games.get(rand::random_range(..self.games.len())).unwrap().id;
                 self.load_game_display(&random_game_id);
                 self.view = View::Game(random_game_id);
+                Task::none()
             },
             Message::ExcludeAchievement(app_id, achievement_name) => {
                 excluded_achievement_store::save_excluded_achievement(&achievement_name, &app_id).expect("Failed to exclude achievement");
@@ -153,6 +182,7 @@ impl App {
                         achievement.goal_state = game_view::GoalState::Excluded;
                     }
                 }
+                Task::none()
             }
         }
     }

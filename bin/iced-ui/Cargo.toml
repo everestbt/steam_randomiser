@@ -15,6 +15,7 @@ color-eyre.workspace = true
 reqwest.workspace = true
 rayon.workspace = true
 bytes.workspace = true
+simple-error.workspace = true
 
 [[bin]]
 path = "src/main.rs"

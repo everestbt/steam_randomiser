@@ -30,7 +30,8 @@ clap = { version = "4.5.44", features = ["derive"] }
 rusqlite = "0.39.0"
 directories = "6.0.0"
 chrono = "0.4.41"
-iced = { version = "0.14", features = ["image"] }
+iced = { version = "0.14", features = ["image", "tokio"] }
 color-eyre = "0.6"
 rayon = "1.12"
 bytes = "1.11"
+simple-error = "0.3"
