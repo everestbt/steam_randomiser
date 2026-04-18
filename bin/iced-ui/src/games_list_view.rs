@@ -17,6 +17,7 @@ use api::{
     game_cover_fetch,
 };
 use std::collections::{HashMap, HashSet};
+use std::cmp::Reverse;
 use rayon::prelude::*;
 
 #[derive(Debug, Clone, Default)]
@@ -82,7 +83,7 @@ impl GameListDisplay {
             })
             .map(|g| (g.clone(), completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0))) // Game, Progress
             .collect();
-        list.sort_by(|a,b| b.1.cmp(&a.1));
+        list.sort_by_key(|a| Reverse(a.1));
 
         // If grid only take the first 100 games
         let games = match view_mode {
@@ -92,7 +93,7 @@ impl GameListDisplay {
                     list
                 }
                 else {
-                    (&list[..99]).to_vec()
+                    list[..99].to_vec()
                 }
             },
         };
@@ -107,7 +108,7 @@ impl GameListDisplay {
                     game_name: g.0.name.clone(),
                     progress_display: g.1.to_string(),
                     image,
-                    id: g.0.appid.clone(),
+                    id: g.0.appid,
                 }
             })
             .collect()
@@ -143,7 +144,7 @@ impl App {
                         })
                     };
                     let columns = [
-                        table::column(bold("Game Name"), |game: &GameListDisplay| button(game.game_name.as_str()).on_press(Message::GameView(game.id).into())),
+                        table::column(bold("Game Name"), |game: &GameListDisplay| button(game.game_name.as_str()).on_press(Message::GameView(game.id))),
                         table::column(bold("Progress"), |game: &GameListDisplay| text(game.progress_display.as_str())),
                     ];
 

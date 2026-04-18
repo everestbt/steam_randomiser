@@ -142,7 +142,7 @@ impl App {
                 }
             },
             Message::RandomGame => {
-                let random_game_id = self.games.get(rand::random_range(..self.games.len())).unwrap().id.clone();
+                let random_game_id = self.games.get(rand::random_range(..self.games.len())).unwrap().id;
                 self.load_game_display(&random_game_id);
                 self.view = View::Game(random_game_id);
             },
@@ -167,7 +167,7 @@ impl App {
 
         let main_view = match &self.view {
             View::Goals => self.goal_view(),
-            View::Games(view) => self.game_list_view(&view),
+            View::Games(view) => self.game_list_view(view),
             View::Game(_) => self.game_view(),
         };
 

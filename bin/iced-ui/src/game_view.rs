@@ -100,7 +100,7 @@ impl App {
                         table::column(bold("Description"), |goal: &GameGoalDisplay| text(&goal.description))
                             .align_x(Left)
                             .align_y(Center),
-                        table::column(bold("Exclude"), |goal: &GameGoalDisplay| button("Exclude").on_press(Message::ExcludeAchievement(app_id.clone(), goal.achievement_name.clone())))
+                        table::column(bold("Exclude"), |goal: &GameGoalDisplay| button("Exclude").on_press(Message::ExcludeAchievement(app_id, goal.achievement_name.clone())))
                             .align_x(Left)
                             .align_y(Center),
                     ];
@@ -181,7 +181,7 @@ impl App {
                 target: target.is_some(),
                 complete: target.map(|t| t.complete).unwrap_or(false),
             };
-            self.game_views.insert(id.clone(), display);
+            self.game_views.insert(*id, display);
         }
     }
 
@@ -192,7 +192,7 @@ impl App {
         if let Some(ra) = random_achievement {
             achievement_store::save_achievement(&ra.name, &ra.display_name, &ra.description, &game.appid, &game.last_played).expect("Failed to save achievement");
             self.goals = Goal::list();
-            if let Some(game_view) = self.game_views.get_mut(&app_id) {
+            if let Some(game_view) = self.game_views.get_mut(app_id) {
                 if let Some(achievement) = game_view.goals.iter_mut().find(|a| a.achievement_name == ra.name) {
                     achievement.goal_state = GoalState::Goal;
                 }
