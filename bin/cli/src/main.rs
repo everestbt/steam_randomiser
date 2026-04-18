@@ -188,7 +188,7 @@ fn get_credentials(args: &Args) -> Credentials {
     let key = key_var.unwrap();
 
     let steam_id= if let Some(id) = &args.id {
-        steam_id_store::save_id(&id).expect("Failed to save the id");
+        steam_id_store::save_id(id).expect("Failed to save the id");
         println!("Saved your steam id, no need to use --id each time now. You can replace it by using --id again.");
         id.clone()
     }
