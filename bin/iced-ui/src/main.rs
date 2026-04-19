@@ -14,7 +14,6 @@ use std::env;
 use std::collections::HashMap;
 use db::{
     steam_id_store,
-    game_completion_cache::{self, GameCompletion},
     game_target_store,
     excluded_achievement_store,
 };
@@ -31,15 +30,11 @@ pub fn main() -> iced::Result {
 
 #[derive(Debug, Clone)]
 enum Message {
-    GamesView,
+    GamesView(GameListView, GameListFilter),
     GameView(i32), //app_id
     GoalsView,
-    GamesTargets,
-    GamesInProgress,
-    GamesCompleted,
-    GamesPerfected,
-    GamesGrid,
     AchievementCheckboxToggled(bool),
+    GamesLoaded(Vec<GameListDisplay>),
     GenerateRandomAchievement(i32), // app_id
     RandomAchievementGenerated(Result<(Game, Option<GameAchievement>), SimpleError>), 
     SetAsGameTarget(i32), // app_id
@@ -51,7 +46,7 @@ enum Message {
 #[derive(Debug, Clone)]
 enum View {
     Goals,
-    Games(GameListView),
+    Games(GameListView, GameListFilter),
     Game(i32), // app_id
 }
 
@@ -65,39 +60,35 @@ struct App {
     // SETTINGS
     view: View,
     // DISPLAY
-    games: Vec<GameListDisplay>,
+    games: Option<Vec<GameListDisplay>>,
     games_have_achievements_filter: bool,
     goals: Vec<Goal>,
     game_views : HashMap<i32, GameDisplay>,
     // DATA
     credentials: Credentials,
     owned_games: Vec<Game>,
-    completed_games_cache: HashMap<i32, GameCompletion>,
 }
 
 impl App {
     fn new() -> Self {
         let data = load_data();
         Self {
-            view: View::Games(GameListView::List),
-            games: GameListDisplay::list(&data.owned_games, &data.completed_games_cache, true, GameListFilter::default(), &GameListView::List),
+            view: View::Goals,
+            games: None,
             games_have_achievements_filter: true,
             goals: Goal::list(),
             game_views: HashMap::new(),
-            credentials: Credentials { 
-                key: env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key"), 
-                steam_id: steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first")
-            },
+            credentials: data.credentials,
             owned_games: data.owned_games,
-            completed_games_cache: data.completed_games_cache,
         }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::GamesView => {
-                self.view = View::Games(GameListView::default());
-                Task::none()
+            Message::GamesView(list_view, filter) => {
+                self.view = View::Games(list_view.clone(), filter.clone());
+                self.games = None;
+                Task::perform(GameListDisplay::list(self.credentials.clone(), self.games_have_achievements_filter, filter.clone(), list_view.clone()), Message::GamesLoaded)
             },
             Message::GameView(id) => {
                 self.load_game_display(&id);
@@ -108,41 +99,19 @@ impl App {
                 self.view = View::Goals;
                 Task::none()
             },
-            Message::GamesTargets => {
-                match &self.view {
-                    View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Targets, view),
-                    _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Targets, &GameListView::default())
-                };
-                Task::none()
-            },
-            Message::GamesInProgress => {
-                match &self.view {
-                    View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress, view),
-                    _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::InProgress, &GameListView::default())
-                };
-                Task::none()
-            },
-            Message::GamesCompleted => {
-                match &self.view {
-                    View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed, view),
-                    _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Completed, &GameListView::default())
-                };
-                Task::none()
-            },
-            Message::GamesPerfected => {
-                match &self.view {
-                    View::Games(view) => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected, view),
-                    _ => self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::Perfected, &GameListView::default())
-                };
-                Task::none()
-            },
-            Message::GamesGrid => {
-                self.view = View::Games(GameListView::Grid);
-                self.games = GameListDisplay::list(&self.owned_games, &self.completed_games_cache, self.games_have_achievements_filter, GameListFilter::None, &GameListView::Grid);
-                Task::none()
-            }
             Message::AchievementCheckboxToggled(is_checked) => {
                 self.games_have_achievements_filter = is_checked;
+                match &self.view {
+                    View::Games(list_view, filter) => {
+                        self.games = None;
+                        Task::perform(GameListDisplay::list(self.credentials.clone(), self.games_have_achievements_filter, filter.clone(), list_view.clone()), Message::GamesLoaded)
+                    },
+                    _ => Task::none()
+                }
+                
+            },
+            Message::GamesLoaded(loaded) => {
+                self.games = Some(loaded);
                 Task::none()
             },
             Message::GenerateRandomAchievement(ref app_id) => Task::perform(game_view::generate_random_achievement(self.credentials.clone(), app_id.clone()), Message::RandomAchievementGenerated),
@@ -170,7 +139,7 @@ impl App {
                 Task::none()
             },
             Message::RandomGame => {
-                let random_game_id = self.games.get(rand::random_range(..self.games.len())).unwrap().id;
+                let random_game_id = self.owned_games.get(rand::random_range(..self.owned_games.len())).unwrap().appid;
                 self.load_game_display(&random_game_id);
                 self.view = View::Game(random_game_id);
                 Task::none()
@@ -190,14 +159,14 @@ impl App {
     fn view(&self) -> Element<'_, Message> {
         let view_selector = {
             row![
-                button("Games").on_press(Message::GamesView),
+                button("Games").on_press(Message::GamesView(GameListView::default(), GameListFilter::default())),
                 button("Goals").on_press(Message::GoalsView),
             ]
         };
 
         let main_view = match &self.view {
             View::Goals => self.goal_view(),
-            View::Games(view) => self.game_list_view(view),
+            View::Games(view, _) => self.game_list_view(view),
             View::Game(_) => self.game_view(),
         };
 
@@ -210,8 +179,8 @@ impl App {
 }
 
 struct DataLoad {
+    credentials: Credentials,
     owned_games: Vec<Game>,
-    completed_games_cache: HashMap<i32, GameCompletion>,
 }
 
 fn load_data() -> DataLoad {
@@ -222,13 +191,8 @@ fn load_data() -> DataLoad {
     runtime.block_on(goals::get_and_sync_completed_achievements(&key, &steam_id));
     let owned_games = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
     runtime.block_on(goals::refresh_game_completion_cache(&key, &steam_id, &owned_games));
-    let completed_games_cache: HashMap<i32, GameCompletion> = game_completion_cache::get_game_completion()
-        .expect("Failed to load completed games")
-        .iter()
-        .map(|n| (n.app_id, n.clone()))
-        .collect();
     DataLoad { 
+        credentials: Credentials { key, steam_id },
         owned_games,
-        completed_games_cache,
     }
 }

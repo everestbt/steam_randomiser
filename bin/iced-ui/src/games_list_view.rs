@@ -1,6 +1,6 @@
 use super::App;
 
-use crate::Message;
+use crate::{Credentials, Message};
 
 use bytes::Bytes;
 use iced::font;
@@ -9,10 +9,12 @@ use iced::widget::{
 };
 use iced::{Element, Font};
 use db::{
+    game_completion_cache,
     game_completion_cache::GameCompletion,
     game_target_store,
 };
 use api::{
+    game_fetch,
     game_fetch::Game,
     game_cover_fetch,
 };
@@ -22,9 +24,8 @@ use rayon::prelude::*;
 
 #[derive(Debug, Clone, Default)]
 pub enum GameListFilter {
-    #[default]
-    None,
     Targets,
+    #[default]
     InProgress,
     Completed,
     Perfected,
@@ -37,6 +38,7 @@ pub enum GameListView {
     Grid,
 }
 
+#[derive(Debug, Clone)]
 pub struct GameListDisplay {
     //DISPLAY
     pub game_name: String,
@@ -47,7 +49,13 @@ pub struct GameListDisplay {
 }
 
 impl GameListDisplay {
-    pub fn list(owned_games: &Vec<Game>, completed_games_cache: &HashMap<i32, GameCompletion>, has_achievements: bool, filter: GameListFilter, view_mode: &GameListView) -> Vec<Self> {
+    pub async fn list(credentials: Credentials, has_achievements: bool, filter: GameListFilter, view_mode: GameListView) -> Vec<Self> {
+        let owned_games = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
+        let completed_games_cache: HashMap<i32, GameCompletion> = game_completion_cache::get_game_completion()
+        .expect("Failed to load completed games")
+        .iter()
+        .map(|n| (n.app_id, n.clone()))
+        .collect();
         let target_set: HashSet<i32> = game_target_store::get_game_targets().expect("Failed to load targets")
             .iter()
             .filter(|t| !t.complete)
@@ -58,7 +66,6 @@ impl GameListDisplay {
             .par_iter()
             .filter(|g| {
                 match filter {
-                    GameListFilter::None => true,
                     GameListFilter::Targets => {
                         target_set.contains(&g.appid)
                     }
@@ -119,11 +126,11 @@ impl App {
     pub fn game_list_view(&self, view_mode: &GameListView) -> Element<'_, Message> {
         let filter_games = {
             row![
-                button("Targets").on_press(Message::GamesTargets),
-                button("In progress").on_press(Message::GamesInProgress),
-                button("Completed").on_press(Message::GamesCompleted),
-                button("Perfected").on_press(Message::GamesPerfected),
-                button("Grid").on_press(Message::GamesGrid),
+                button("Targets").on_press(Message::GamesView(view_mode.clone(), GameListFilter::Targets)),
+                button("In progress").on_press(Message::GamesView(view_mode.clone(), GameListFilter::InProgress)),
+                button("Completed").on_press(Message::GamesView(view_mode.clone(), GameListFilter::Completed)),
+                button("Perfected").on_press(Message::GamesView(view_mode.clone(), GameListFilter::Perfected)),
+                button("Grid").on_press(Message::GamesView(GameListView::Grid, GameListFilter::Targets)),
             ]
         };
 
@@ -132,40 +139,49 @@ impl App {
         let achievement_filter = checkbox(self.games_have_achievements_filter)
             .label("Has Achievements")
             .on_toggle(Message::AchievementCheckboxToggled);
-
-        let game_count = text("Number of games:".to_owned() + self.games.len().to_string().as_str());
+        let game_count = if let Some(games) = &self.games {
+            text("Number of games:".to_owned() + games.len().to_string().as_str())
+        }
+        else {
+            text("Loading...")
+        };
         let main_view = {
-            match view_mode {
-                GameListView::List => {
-                    let bold = |header| {
-                        text(header).font(Font {
-                            weight: font::Weight::Bold,
-                            ..Font::DEFAULT
-                        })
-                    };
-                    let columns = [
-                        table::column(bold("Game Name"), |game: &GameListDisplay| button(game.game_name.as_str()).on_press(Message::GameView(game.id))),
-                        table::column(bold("Progress"), |game: &GameListDisplay| text(game.progress_display.as_str())),
-                    ];
+            if let Some (games) = &self.games {
+                match view_mode {
+                    GameListView::List => {
+                        let bold = |header| {
+                            text(header).font(Font {
+                                weight: font::Weight::Bold,
+                                ..Font::DEFAULT
+                            })
+                        };
+                        let columns = [
+                            table::column(bold("Game Name"), |game: &GameListDisplay| button(game.game_name.as_str()).on_press(Message::GameView(game.id))),
+                            table::column(bold("Progress"), |game: &GameListDisplay| text(game.progress_display.as_str())),
+                        ];
 
-                    column![table(columns, &self.games)
-                        .padding_x(10)
-                        .padding_y(5)
-                        .separator_x(1)
-                        .separator_y(1)]
-                },
-                GameListView::Grid => {
-                    let panes = self.games.iter().map(|g| {
-                        if let Some(i) = &g.image {
-                            image(Handle::from_bytes(i.clone())).into()
-                        }
-                        else {
-                            text(g.game_name.clone()).into()
-                        }
-                    });
-                    column![grid(panes)
-                        .spacing(10)]
-                },
+                        column![table(columns, games)
+                            .padding_x(10)
+                            .padding_y(5)
+                            .separator_x(1)
+                            .separator_y(1)]
+                    },
+                    GameListView::Grid => {
+                        let panes = games.iter().map(|g| {
+                            if let Some(i) = &g.image {
+                                image(Handle::from_bytes(i.clone())).into()
+                            }
+                            else {
+                                text(g.game_name.clone()).into()
+                            }
+                        });
+                        column![grid(panes)
+                            .spacing(10)]
+                    },
+                }
+            }
+            else {
+                column![text("Loading game list...")]
             }
         };
         column![
