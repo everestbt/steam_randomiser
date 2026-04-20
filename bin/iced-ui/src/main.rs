@@ -3,7 +3,7 @@ mod goals_view;
 mod game_view;
 
 use iced::widget::{
-    center_x, column, row, button,
+    center_x, column, row, button, image::Handle
 };
 use iced::{Element, Theme, Task};
 use games_list_view::{GameListDisplay, GameListFilter, GameListView};
@@ -32,6 +32,8 @@ pub fn main() -> iced::Result {
 enum Message {
     GamesView(GameListView, GameListFilter),
     GameView(i32), //app_id
+    GameLoaded(GameDisplay),
+    GoalIconLoaded((i32, String, Handle)),
     GoalsView,
     AchievementCheckboxToggled(bool),
     GamesLoaded(Vec<GameListDisplay>),
@@ -63,10 +65,11 @@ struct App {
     games: Option<Vec<GameListDisplay>>,
     games_have_achievements_filter: bool,
     goals: Vec<Goal>,
-    game_views : HashMap<i32, GameDisplay>,
+    game_views: HashMap<i32, GameDisplay>,
+    goal_icons: HashMap<(i32, String), Handle>, // app_id, achievement_name -> image
     // DATA
     credentials: Credentials,
-    owned_games: Vec<Game>,
+    owned_games: HashMap<i32, Game>, //app_id -> Game
 }
 
 impl App {
@@ -78,6 +81,7 @@ impl App {
             games_have_achievements_filter: true,
             goals: Goal::list(),
             game_views: HashMap::new(),
+            goal_icons: HashMap::new(),
             credentials: data.credentials,
             owned_games: data.owned_games,
         }
@@ -91,8 +95,16 @@ impl App {
                 Task::perform(GameListDisplay::list(self.credentials.clone(), self.games_have_achievements_filter, filter.clone(), list_view.clone()), Message::GamesLoaded)
             },
             Message::GameView(id) => {
-                self.load_game_display(&id);
                 self.view = View::Game(id);
+                Task::perform(game_view::load_game_display(self.credentials.clone(), id.clone(), self.owned_games.get(&id).expect("Does not exist").name.clone()), Message::GameLoaded)
+            },
+            Message::GameLoaded(display) => {
+                let tasks: Vec<Task<Message>> = display.goals.iter().map(|goal| Task::perform(game_view::load_goal_icon(display.app_id.clone(), goal.achievement_name.clone(),goal.icon.clone(), goal.icon_gray.clone(), goal.goal_state.clone()), Message::GoalIconLoaded)).collect();
+                self.game_views.insert(display.app_id.clone(), display);
+                Task::batch(tasks)
+            },
+            Message::GoalIconLoaded(icon) => {
+                self.goal_icons.insert((icon.0, icon.1), icon.2);
                 Task::none()
             },
             Message::GoalsView => {
@@ -139,10 +151,9 @@ impl App {
                 Task::none()
             },
             Message::RandomGame => {
-                let random_game_id = self.owned_games.get(rand::random_range(..self.owned_games.len())).unwrap().appid;
-                self.load_game_display(&random_game_id);
-                self.view = View::Game(random_game_id);
-                Task::none()
+                let random_game_id = self.owned_games.values().nth(rand::random_range(..self.owned_games.values().len())).unwrap().appid;
+                self.view = View::Game(random_game_id).clone();
+                Task::perform(game_view::load_game_display(self.credentials.clone(), random_game_id.clone(), self.owned_games.get(&random_game_id).expect("Does not exist").name.clone()), Message::GameLoaded)
             },
             Message::ExcludeAchievement(app_id, achievement_name) => {
                 excluded_achievement_store::save_excluded_achievement(&achievement_name, &app_id).expect("Failed to exclude achievement");
@@ -180,7 +191,7 @@ impl App {
 
 struct DataLoad {
     credentials: Credentials,
-    owned_games: Vec<Game>,
+    owned_games: HashMap<i32, Game>,
 }
 
 fn load_data() -> DataLoad {
@@ -189,8 +200,9 @@ fn load_data() -> DataLoad {
     let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
     // Sync and update all data
     runtime.block_on(goals::get_and_sync_completed_achievements(&key, &steam_id));
-    let owned_games = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
-    runtime.block_on(goals::refresh_game_completion_cache(&key, &steam_id, &owned_games));
+    let owned_games_vec = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
+    runtime.block_on(goals::refresh_game_completion_cache(&key, &steam_id, &owned_games_vec));
+    let owned_games: HashMap<i32, Game> = owned_games_vec.iter().map(|g| (g.appid.clone(), g.clone())).collect::<HashMap<_, _>>();
     DataLoad { 
         credentials: Credentials { key, steam_id },
         owned_games,
