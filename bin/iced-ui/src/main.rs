@@ -18,7 +18,7 @@ use db::{
     excluded_achievement_store,
 };
 use goals_lib::goals;
-use game_view::GameDisplay;
+use game_view::{GameDisplay, GameGoalDisplay};
 use api::achievement_fetch::GameAchievement;
 
 pub fn main() -> iced::Result {
@@ -33,7 +33,7 @@ enum Message {
     GamesView(GameListView, GameListFilter),
     GameView(i32), //app_id
     GameLoaded(GameDisplay),
-    GoalIconLoaded((i32, String, Handle)),
+    GoalIconsLoaded(HashMap<(i32, String), Handle>), // app_id, achievement_name -> Image
     GoalsView,
     AchievementCheckboxToggled(bool),
     GamesLoaded(Vec<GameListDisplay>),
@@ -99,12 +99,23 @@ impl App {
                 Task::perform(game_view::load_game_display(self.credentials.clone(), id.clone(), self.owned_games.get(&id).expect("Does not exist").name.clone()), Message::GameLoaded)
             },
             Message::GameLoaded(display) => {
-                let tasks: Vec<Task<Message>> = display.goals.iter().map(|goal| Task::perform(game_view::load_goal_icon(display.app_id.clone(), goal.achievement_name.clone(),goal.icon.clone(), goal.icon_gray.clone(), goal.goal_state.clone()), Message::GoalIconLoaded)).collect();
+                let filtered_icons: Vec<GameGoalDisplay> = display.goals.iter()
+                    .filter(|i| !self.goal_icons.contains_key(&(display.app_id, i.achievement_name.clone())))
+                    .map(|d| d.clone())
+                    .collect();
+                let task = if filtered_icons.is_empty() {
+                    Task::none()
+                } 
+                else {
+                    Task::perform(game_view::load_all_goal_icons(display.app_id.clone(), filtered_icons), Message::GoalIconsLoaded)
+                };
                 self.game_views.insert(display.app_id.clone(), display);
-                Task::batch(tasks)
+                task
             },
-            Message::GoalIconLoaded(icon) => {
-                self.goal_icons.insert((icon.0, icon.1), icon.2);
+            Message::GoalIconsLoaded(icons) => {
+                for icon in icons {
+                    self.goal_icons.insert(icon.0, icon.1);
+                }
                 Task::none()
             },
             Message::GoalsView => {

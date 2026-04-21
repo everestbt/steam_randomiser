@@ -16,7 +16,7 @@ use api::{
     game_fetch,
     game_fetch::Game,
 };
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use db::{
     game_target_store,
     achievement_store,
@@ -221,12 +221,34 @@ pub async fn load_game_display(credentials: Credentials, app_id: i32, game_name:
     }
 }
 
-pub async fn load_goal_icon(app_id: i32, achievement_name: String, icon_url: String, icon_gray_url: String, goal_state: GoalState) -> (i32, String, Handle) {
-    let img_bytes = if goal_state == GoalState::Complete {
-        reqwest::blocking::get(icon_url).expect("Failed to load url").bytes().expect("Failed to read bytes")
+pub async fn load_all_goal_icons(app_id: i32, achievements: Vec<GameGoalDisplay>) -> HashMap<(i32, String), Handle> {
+    let mut map = HashMap::new();
+    for a in achievements {
+        if let Ok(r) = load_goal_icon(app_id, a.achievement_name, a.icon, a.icon_gray, a.goal_state).await {
+            map.insert((r.0, r.1), r.2);
+        }
+        // This drops the error, it will reload on a fresh request
+    }
+    map
+}
+
+pub async fn load_goal_icon(app_id: i32, achievement_name: String, icon_url: String, icon_gray_url: String, goal_state: GoalState) -> Result<(i32, String, Handle), SimpleError> {
+    let img_response = if goal_state == GoalState::Complete {
+        reqwest::get(icon_url).await
     }
     else {
-        reqwest::blocking::get(icon_gray_url).expect("Failed to load url").bytes().expect("Failed to read bytes")
+        reqwest::get(icon_gray_url).await
     };
-    (app_id, achievement_name, Handle::from_bytes(img_bytes))
+    if let Ok(r) = img_response {
+        if let Ok(b) = r.bytes().await {
+            Ok((app_id, achievement_name, Handle::from_bytes(b)))
+        }
+        else {
+            Err(SimpleError::new("Failed to read bytes"))
+        }
+    }
+    else {
+        Err(SimpleError::new("Failed to reach url"))
+    }
+    
 } 
