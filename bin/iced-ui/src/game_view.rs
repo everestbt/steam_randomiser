@@ -93,13 +93,12 @@ impl App {
                             table::column(bold("Icon"), |goal: &GameGoalDisplay| 
                             {
                                 if let Some(i) = self.goal_icons.get(&(app_id, goal.achievement_name.clone())) {
-                                    column![image(i)]
+                                    column![image(i).width(60).height(60)]
                                 }
                                 else {
                                     column![text("loading")]
                                 }
                             }
-                        
                         )
                                 .align_x(Left)
                                 .align_y(Center),
