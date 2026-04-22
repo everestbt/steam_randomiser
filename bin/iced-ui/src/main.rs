@@ -3,7 +3,7 @@ mod goals_view;
 mod game_view;
 
 use iced::widget::{
-    center_x, column, row, button, image::Handle
+    center_x, column, row, button, image::Handle, text
 };
 use iced::{Element, Theme, Task};
 use games_list_view::{GameListDisplay, GameListFilter, GameListView};
@@ -35,6 +35,7 @@ enum Message {
     GameLoaded(GameDisplay),
     GoalIconsLoaded(HashMap<(i32, String), Handle>), // app_id, achievement_name -> Image
     GoalsView,
+    GoalsLoaded(Vec<Goal>),
     AchievementCheckboxToggled(bool),
     GamesLoaded(Vec<GameListDisplay>),
     GenerateRandomAchievement(i32), // app_id
@@ -45,8 +46,10 @@ enum Message {
     ExcludeAchievement(i32, String) // app_id, achievement_name
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 enum View {
+    #[default]
+    None,
     Goals,
     Games(GameListView, GameListFilter),
     Game(i32), // app_id
@@ -64,7 +67,7 @@ struct App {
     // DISPLAY
     games: Option<Vec<GameListDisplay>>,
     games_have_achievements_filter: bool,
-    goals: Vec<Goal>,
+    goals: Option<Vec<Goal>>,
     game_views: HashMap<i32, GameDisplay>,
     goal_icons: HashMap<(i32, String), Handle>, // app_id, achievement_name -> image
     // DATA
@@ -76,10 +79,10 @@ impl App {
     fn new() -> Self {
         let data = load_data();
         Self {
-            view: View::Goals,
+            view: View::default(),
             games: None,
             games_have_achievements_filter: true,
-            goals: Goal::list(),
+            goals: None,
             game_views: HashMap::new(),
             goal_icons: HashMap::new(),
             credentials: data.credentials,
@@ -120,6 +123,15 @@ impl App {
             },
             Message::GoalsView => {
                 self.view = View::Goals;
+                if self.goals.is_none() {
+                    Task::perform(Goal::list(self.credentials.clone()), Message::GoalsLoaded)
+                }
+                else {
+                    Task::none()
+                }
+            },
+            Message::GoalsLoaded(goals) => {
+                self.goals = Some(goals);
                 Task::none()
             },
             Message::AchievementCheckboxToggled(is_checked) => {
@@ -141,11 +153,11 @@ impl App {
             Message::RandomAchievementGenerated(random_achievement) => {
                 if let Ok(r) = random_achievement {
                     self.handle_generated_random_achievement(r.0, r.1);
+                    Task::perform(Goal::list(self.credentials.clone()), Message::GoalsLoaded)
                 }
                 else {
                     panic!("{}", random_achievement.unwrap_err().as_str())
                 }
-                Task::none()
             },
             Message::SetAsGameTarget(app_id) => {
                 game_target_store::save_game_target(&app_id, &false).expect("Failed to save target");
@@ -186,7 +198,8 @@ impl App {
             ]
         };
 
-        let main_view = match &self.view {
+        let main_view: Element<'_, Message> = match &self.view {
+            View::None => column![center_x(text("Welcome to G.A.B.E"))].into(),
             View::Goals => self.goal_view(),
             View::Games(view, _) => self.game_list_view(view),
             View::Game(_) => self.game_view(),

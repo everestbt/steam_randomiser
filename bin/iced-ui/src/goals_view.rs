@@ -1,6 +1,6 @@
 use super::App;
 
-use crate::Message;
+use crate::{Credentials, Message};
 
 use iced::font;
 use iced::widget::{
@@ -9,13 +9,11 @@ use iced::widget::{
 use iced::{Center, Left, Font, Element};
 use db::{
     achievement_store, 
-    steam_id_store
 };
 use api::game_fetch;
 use std::collections::HashMap;
-use std::env;
 
-
+#[derive(Debug, Clone)]
 pub struct Goal {
     pub game_name: String,
     pub achievement_name: String,
@@ -23,12 +21,8 @@ pub struct Goal {
 }
 
 impl Goal {
-    pub fn list() -> Vec<Self> {
-        let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
-        let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
-
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        let game_map = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id))
+    pub async fn list(credentials: Credentials) -> Vec<Self> {
+        let game_map = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await
             .into_iter()
             .map(|g| (g.appid, g))
             .collect::<HashMap<_, _>>();
@@ -46,32 +40,39 @@ impl Goal {
 
 impl App {
     pub fn goal_view(&self) -> Element<'_, Message> {
-        let table = {
-            let bold = |header| {
-                text(header).font(Font {
-                    weight: font::Weight::Bold,
-                    ..Font::DEFAULT
-                })
-            };
-            let columns = [
-                table::column(bold("Game Name"), |goal: &Goal| text(&goal.game_name)),
-                table::column(bold("Achievement Name"), |goal: &Goal| text(&goal.achievement_name))
-                    .align_x(Left)
-                    .align_y(Center),
-                table::column(bold("Description"), |goal: &Goal| text(&goal.description))
-                    .align_x(Left)
-                    .align_y(Center),
-            ];
+        let main_view = if let Some(goals) = &self.goals {
+            {
+                let bold = |header| {
+                    text(header).font(Font {
+                        weight: font::Weight::Bold,
+                        ..Font::DEFAULT
+                    })
+                };
+                let columns = [
+                    table::column(bold("Game Name"), |goal: &Goal| text(&goal.game_name)),
+                    table::column(bold("Achievement Name"), |goal: &Goal| text(&goal.achievement_name))
+                        .align_x(Left)
+                        .align_y(Center),
+                    table::column(bold("Description"), |goal: &Goal| text(&goal.description))
+                        .align_x(Left)
+                        .align_y(Center),
+                ];
 
-            table(columns, &self.goals)
-                .padding_x(10)
-                .padding_y(5)
-                .separator_x(1)
-                .separator_y(1)
+                column![table(columns, goals)
+                    .padding_x(10)
+                    .padding_y(5)
+                    .separator_x(1)
+                    .separator_y(1)]
+            }
+        } 
+        else {
+            column![
+                text("Loading")
+            ]
         };
 
         column![
-            center_y(scrollable(center_x(table)).spacing(10)).padding(10),
+            center_y(scrollable(center_x(main_view)).spacing(10)).padding(10),
         ].into()
     }
 }
