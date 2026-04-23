@@ -97,6 +97,10 @@ impl App {
                 self.games = None;
                 Task::perform(GameListDisplay::list(self.credentials.clone(), self.games_have_achievements_filter, filter.clone(), list_view.clone()), Message::GamesLoaded)
             },
+            Message::GamesLoaded(loaded) => {
+                self.games = Some(loaded);
+                Task::none()
+            },
             Message::GameView(id) => {
                 self.view = View::Game(id);
                 Task::perform(game_view::load_game_display(self.credentials.clone(), id.clone(), self.owned_games.get(&id).expect("Does not exist").name.clone()), Message::GameLoaded)
@@ -131,8 +135,12 @@ impl App {
                 }
             },
             Message::GoalsLoaded(goals) => {
+                let mut tasks: Vec<Task<Message>> = Vec::new();
+                for g in &goals {
+                    tasks.push(Task::perform(game_view::load_game_display(self.credentials.clone(), g.app_id.clone(), g.game_name.clone()), Message::GameLoaded));
+                }
                 self.goals = Some(goals);
-                Task::none()
+                Task::batch(tasks)
             },
             Message::AchievementCheckboxToggled(is_checked) => {
                 self.games_have_achievements_filter = is_checked;
@@ -144,10 +152,6 @@ impl App {
                     _ => Task::none()
                 }
                 
-            },
-            Message::GamesLoaded(loaded) => {
-                self.games = Some(loaded);
-                Task::none()
             },
             Message::GenerateRandomAchievement(ref app_id) => Task::perform(game_view::generate_random_achievement(self.credentials.clone(), app_id.clone()), Message::RandomAchievementGenerated),
             Message::RandomAchievementGenerated(random_achievement) => {
