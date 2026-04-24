@@ -156,8 +156,12 @@ impl App {
             Message::GenerateRandomAchievement(ref app_id) => Task::perform(game_view::generate_random_achievement(self.credentials.clone(), app_id.clone()), Message::RandomAchievementGenerated),
             Message::RandomAchievementGenerated(random_achievement) => {
                 if let Ok(r) = random_achievement {
+                    let tasks = vec![
+                        Task::perform(Goal::list(self.credentials.clone()), Message::GoalsLoaded), 
+                        Task::perform(game_view::load_game_display(self.credentials.clone(), r.0.appid.clone(), r.0.name.clone()), Message::GameLoaded)
+                    ];
                     self.handle_generated_random_achievement(r.0, r.1);
-                    Task::perform(Goal::list(self.credentials.clone()), Message::GoalsLoaded)
+                    Task::batch(tasks)
                 }
                 else {
                     panic!("{}", random_achievement.unwrap_err().as_str())
@@ -184,12 +188,7 @@ impl App {
             },
             Message::ExcludeAchievement(app_id, achievement_name) => {
                 excluded_achievement_store::save_excluded_achievement(&achievement_name, &app_id).expect("Failed to exclude achievement");
-                if let Some(game_view) = self.game_views.get_mut(&app_id) {
-                    if let Some(achievement) = game_view.goals.iter_mut().find(|a| a.achievement_name == achievement_name) {
-                        achievement.goal_state = game_view::GoalState::Excluded;
-                    }
-                }
-                Task::none()
+                Task::perform(game_view::load_game_display(self.credentials.clone(), app_id.clone(), self.owned_games.get(&app_id).expect("Does not exist").name.clone()), Message::GameLoaded)
             }
         }
     }
