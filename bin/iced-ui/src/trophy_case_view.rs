@@ -25,8 +25,9 @@ impl App {
                     text("Loading").into()
                 }
             });
-            column![scrollable(grid(panes)
-                .spacing(10))].into()
+            column![
+                scrollable(grid(panes).columns(10).spacing(10))
+            ].into()
         }
         else {
             column![text("Loading trophy list...")].into()
