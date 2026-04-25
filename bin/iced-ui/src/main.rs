@@ -21,7 +21,7 @@ use db::{
 use goals_lib::goals;
 use game_view::{GameDisplay, GameGoalDisplay};
 use api::achievement_fetch::GameAchievement;
-use trophy_case_view::TrophyCaseView;
+use trophy_case_view::TrophyCaseFilter;
 
 pub fn main() -> iced::Result {
     color_eyre::install().expect("Failed to install color eyre");
@@ -46,7 +46,7 @@ enum Message {
     SetGameAsComplete(i32), // app_id
     RandomGame,
     ExcludeAchievement(i32, String), // app_id, achievement_name
-    TrophyCaseView,
+    TrophyCaseView(TrophyCaseFilter),
     TrophiesLoaded(Vec<i32>), // app_id's
     GameCoversLoaded(HashMap<i32, Handle>) // app_id -> Game Cover
 }
@@ -200,9 +200,9 @@ impl App {
                 excluded_achievement_store::save_excluded_achievement(&achievement_name, &app_id).expect("Failed to exclude achievement");
                 Task::perform(game_view::load_game_display(self.credentials.clone(), app_id.clone(), self.owned_games.get(&app_id).expect("Does not exist").name.clone()), Message::GameLoaded)
             },
-            Message::TrophyCaseView => {
+            Message::TrophyCaseView(filter) => {
                 self.view = View::TrophyCase;
-                Task::perform(trophy_case_view::load_trophies(TrophyCaseView::default()), Message::TrophiesLoaded)
+                Task::perform(trophy_case_view::load_trophies(filter), Message::TrophiesLoaded)
             },
             Message::TrophiesLoaded(trophies) => {
                 let filtered_covers: Vec<i32> = trophies.iter()
@@ -231,7 +231,7 @@ impl App {
             row![
                 button("Games").on_press(Message::GamesView(GameListFilter::default())),
                 button("Goals").on_press(Message::GoalsView),
-                button("Trophy Case").on_press(Message::TrophyCaseView),
+                button("Trophy Case").on_press(Message::TrophyCaseView(TrophyCaseFilter::default())),
             ]
         };
 

@@ -5,7 +5,7 @@ use crate::Message;
 use api::game_cover_fetch;
 use iced::{Element};
 use iced::widget::{
-    column, text, image, image::Handle, grid, scrollable
+    column, row, text, image, image::Handle, grid, scrollable, center_x, button
 };
 use db::game_completion_cache;
 use std::collections::HashMap;
@@ -13,6 +13,12 @@ use rayon::prelude::*;
 
 impl App {
     pub fn trophy_case_view(&self) -> Element<'_, Message> {
+        let filter_games = {
+            row![
+                button("Completed").on_press(Message::TrophyCaseView(TrophyCaseFilter::Completed)),
+                button("Perfected").on_press(Message::TrophyCaseView(TrophyCaseFilter::Perfected)),
+            ]
+        };
         if let Some(trophies) = &self.trophies {
             let panes = trophies.iter().map(|app_id| {
                 if let Some(i) =  self.game_covers.get(app_id) {
@@ -26,6 +32,7 @@ impl App {
                 }
             });
             column![
+                center_x(filter_games),
                 scrollable(grid(panes).columns(10).spacing(10))
             ].into()
         }
@@ -36,20 +43,20 @@ impl App {
 }
 
 #[derive(Debug, Clone, Default)]
-pub enum TrophyCaseView {
+pub enum TrophyCaseFilter {
     #[default]
     Completed,
     Perfected,
 }
 
-pub async fn load_trophies(view: TrophyCaseView) -> Vec<i32> {
+pub async fn load_trophies(view: TrophyCaseFilter) -> Vec<i32> {
     game_completion_cache::get_game_completion()
         .expect("Failed to load cache")
         .iter()
         .filter(|c| {
             match view {
-                TrophyCaseView::Completed => c.complete == 100,
-                TrophyCaseView::Perfected => c.perfect
+                TrophyCaseFilter::Completed => c.complete == 100,
+                TrophyCaseFilter::Perfected => c.perfect
             }
         }) 
         .map(|c| c.app_id)
