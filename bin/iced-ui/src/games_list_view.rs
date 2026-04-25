@@ -2,10 +2,9 @@ use super::App;
 
 use crate::{Credentials, Message};
 
-use bytes::Bytes;
 use iced::font;
 use iced::widget::{
-    center_x, center_y, column, row, table, text, scrollable, button, checkbox, image, image::Handle, grid,
+    center_x, center_y, column, row, table, text, scrollable, button, checkbox,
 };
 use iced::{Element, Font};
 use db::{
@@ -16,7 +15,6 @@ use db::{
 use api::{
     game_fetch,
     game_fetch::Game,
-    game_cover_fetch,
 };
 use std::collections::{HashMap, HashSet};
 use std::cmp::Reverse;
@@ -31,25 +29,17 @@ pub enum GameListFilter {
     Perfected,
 }
 
-#[derive(Debug, Clone, Default)]
-pub enum GameListView {
-    #[default]
-    List,
-    Grid,
-}
-
 #[derive(Debug, Clone)]
 pub struct GameListDisplay {
     //DISPLAY
     pub game_name: String,
     pub progress_display: String,
-    pub image: Option<Bytes>,
     //DATA
     pub id: i32,
 }
 
 impl GameListDisplay {
-    pub async fn list(credentials: Credentials, has_achievements: bool, filter: GameListFilter, view_mode: GameListView) -> Vec<Self> {
+    pub async fn list(credentials: Credentials, has_achievements: bool, filter: GameListFilter) -> Vec<Self> {
         let owned_games = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
         let completed_games_cache: HashMap<i32, GameCompletion> = game_completion_cache::get_game_completion()
             .expect("Failed to load completed games")
@@ -92,29 +82,12 @@ impl GameListDisplay {
             .collect();
         list.sort_by_key(|a| Reverse(a.1));
 
-        // If grid only take the first 100 games
-        let games = match view_mode {
-            GameListView::List => list,
-            GameListView::Grid => {
-                if list.len() <= 100 {
-                    list
-                }
-                else {
-                    list[..99].to_vec()
-                }
-            },
-        };
-        games
+        list
             .par_iter()
             .map(|g| {
-                let image = match view_mode {
-                    GameListView::Grid => game_cover_fetch::get_game_cover_blocking(&g.0.appid),
-                    GameListView::List => None,
-                };
                 GameListDisplay{
                     game_name: g.0.name.clone(),
                     progress_display: g.1.to_string(),
-                    image,
                     id: g.0.appid,
                 }
             })
@@ -123,14 +96,13 @@ impl GameListDisplay {
 }
 
 impl App {
-    pub fn game_list_view(&self, view_mode: &GameListView) -> Element<'_, Message> {
+    pub fn game_list_view(&self) -> Element<'_, Message> {
         let filter_games = {
             row![
-                button("Targets").on_press(Message::GamesView(view_mode.clone(), GameListFilter::Targets)),
-                button("In progress").on_press(Message::GamesView(view_mode.clone(), GameListFilter::InProgress)),
-                button("Completed").on_press(Message::GamesView(view_mode.clone(), GameListFilter::Completed)),
-                button("Perfected").on_press(Message::GamesView(view_mode.clone(), GameListFilter::Perfected)),
-                button("Grid").on_press(Message::GamesView(GameListView::Grid, GameListFilter::Targets)),
+                button("Targets").on_press(Message::GamesView(GameListFilter::Targets)),
+                button("In progress").on_press(Message::GamesView(GameListFilter::InProgress)),
+                button("Completed").on_press(Message::GamesView(GameListFilter::Completed)),
+                button("Perfected").on_press(Message::GamesView(GameListFilter::Perfected)),
             ]
         };
 
@@ -147,38 +119,22 @@ impl App {
         };
         let main_view = {
             if let Some (games) = &self.games {
-                match view_mode {
-                    GameListView::List => {
-                        let bold = |header| {
-                            text(header).font(Font {
-                                weight: font::Weight::Bold,
-                                ..Font::DEFAULT
-                            })
-                        };
-                        let columns = [
-                            table::column(bold("Game Name"), |game: &GameListDisplay| button(game.game_name.as_str()).on_press(Message::GameView(game.id))),
-                            table::column(bold("Progress"), |game: &GameListDisplay| text(game.progress_display.as_str())),
-                        ];
+                let bold = |header| {
+                    text(header).font(Font {
+                        weight: font::Weight::Bold,
+                        ..Font::DEFAULT
+                    })
+                };
+                let columns = [
+                    table::column(bold("Game Name"), |game: &GameListDisplay| button(game.game_name.as_str()).on_press(Message::GameView(game.id))),
+                    table::column(bold("Progress"), |game: &GameListDisplay| text(game.progress_display.as_str())),
+                ];
 
-                        column![table(columns, games)
-                            .padding_x(10)
-                            .padding_y(5)
-                            .separator_x(1)
-                            .separator_y(1)]
-                    },
-                    GameListView::Grid => {
-                        let panes = games.iter().map(|g| {
-                            if let Some(i) = &g.image {
-                                image(Handle::from_bytes(i.clone())).into()
-                            }
-                            else {
-                                text(g.game_name.clone()).into()
-                            }
-                        });
-                        column![grid(panes)
-                            .spacing(10)]
-                    },
-                }
+                column![table(columns, games)
+                    .padding_x(10)
+                    .padding_y(5)
+                    .separator_x(1)
+                    .separator_y(1)]
             }
             else {
                 column![text("Loading game list...")]
