@@ -1,6 +1,7 @@
 mod games_list_view;
 mod goals_view;
 mod game_view;
+mod trophy_case_view;
 
 use iced::widget::{
     center_x, column, row, button, image::Handle, text
@@ -20,6 +21,7 @@ use db::{
 use goals_lib::goals;
 use game_view::{GameDisplay, GameGoalDisplay};
 use api::achievement_fetch::GameAchievement;
+use trophy_case_view::TrophyCaseView;
 
 pub fn main() -> iced::Result {
     color_eyre::install().expect("Failed to install color eyre");
@@ -43,7 +45,10 @@ enum Message {
     SetAsGameTarget(i32), // app_id
     SetGameAsComplete(i32), // app_id
     RandomGame,
-    ExcludeAchievement(i32, String) // app_id, achievement_name
+    ExcludeAchievement(i32, String), // app_id, achievement_name
+    TrophyCaseView,
+    TrophiesLoaded(Vec<i32>), // app_id's
+    GameCoversLoaded(HashMap<i32, Handle>) // app_id -> Game Cover
 }
 
 #[derive(Debug, Clone, Default)]
@@ -53,6 +58,7 @@ enum View {
     Goals,
     Games(GameListView, GameListFilter),
     Game(i32), // app_id
+    TrophyCase,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +76,8 @@ struct App {
     goals: Option<Vec<Goal>>,
     game_views: HashMap<i32, GameDisplay>,
     goal_icons: HashMap<(i32, String), Handle>, // app_id, achievement_name -> image
+    trophies: Option<Vec<i32>>,
+    game_covers: HashMap<i32, Handle>, // app_id -> image
     // DATA
     credentials: Credentials,
     owned_games: HashMap<i32, Game>, //app_id -> Game
@@ -85,6 +93,8 @@ impl App {
             goals: None,
             game_views: HashMap::new(),
             goal_icons: HashMap::new(),
+            game_covers: HashMap::new(),
+            trophies: None,
             credentials: data.credentials,
             owned_games: data.owned_games,
         }
@@ -189,6 +199,29 @@ impl App {
             Message::ExcludeAchievement(app_id, achievement_name) => {
                 excluded_achievement_store::save_excluded_achievement(&achievement_name, &app_id).expect("Failed to exclude achievement");
                 Task::perform(game_view::load_game_display(self.credentials.clone(), app_id.clone(), self.owned_games.get(&app_id).expect("Does not exist").name.clone()), Message::GameLoaded)
+            },
+            Message::TrophyCaseView => {
+                self.view = View::TrophyCase;
+                Task::perform(trophy_case_view::load_trophies(TrophyCaseView::default()), Message::TrophiesLoaded)
+            },
+            Message::TrophiesLoaded(trophies) => {
+                let filtered_covers: Vec<i32> = trophies.iter()
+                    .filter(|app_id| !self.game_covers.contains_key(app_id))
+                    .map(|app_id| app_id.clone())
+                    .collect();
+                self.trophies = Some(trophies);
+                if filtered_covers.is_empty() {
+                    Task::none()
+                }
+                else {
+                    Task::perform(trophy_case_view::load_game_covers(filtered_covers), Message::GameCoversLoaded)
+                }
+            },
+            Message::GameCoversLoaded(cover_map) => {
+                for cover in cover_map {
+                    self.game_covers.insert(cover.0, cover.1);
+                }
+                Task::none()
             }
         }
     }
@@ -198,6 +231,7 @@ impl App {
             row![
                 button("Games").on_press(Message::GamesView(GameListView::default(), GameListFilter::default())),
                 button("Goals").on_press(Message::GoalsView),
+                button("Trophy Case").on_press(Message::TrophyCaseView),
             ]
         };
 
@@ -206,6 +240,7 @@ impl App {
             View::Goals => self.goal_view(),
             View::Games(view, _) => self.game_list_view(view),
             View::Game(_) => self.game_view(),
+            View::TrophyCase => self.trophy_case_view(),
         };
 
         column![

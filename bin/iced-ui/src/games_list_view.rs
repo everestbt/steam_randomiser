@@ -52,10 +52,10 @@ impl GameListDisplay {
     pub async fn list(credentials: Credentials, has_achievements: bool, filter: GameListFilter, view_mode: GameListView) -> Vec<Self> {
         let owned_games = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
         let completed_games_cache: HashMap<i32, GameCompletion> = game_completion_cache::get_game_completion()
-        .expect("Failed to load completed games")
-        .iter()
-        .map(|n| (n.app_id, n.clone()))
-        .collect();
+            .expect("Failed to load completed games")
+            .iter()
+            .map(|n| (n.app_id, n.clone()))
+            .collect();
         let target_set: HashSet<i32> = game_target_store::get_game_targets().expect("Failed to load targets")
             .iter()
             .filter(|t| !t.complete)
