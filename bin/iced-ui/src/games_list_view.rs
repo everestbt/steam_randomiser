@@ -20,7 +20,7 @@ use std::collections::{HashMap, HashSet};
 use std::cmp::Reverse;
 use rayon::prelude::*;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub enum GameListFilter {
     Targets,
     #[default]
@@ -38,8 +38,15 @@ pub struct GameListDisplay {
     pub id: i32,
 }
 
+#[derive(Debug, Clone)]
+pub struct GameListResult {
+    pub filter: GameListFilter,
+    pub has_achievements: bool,
+    pub list: Vec<GameListDisplay>,
+}
+
 impl GameListDisplay {
-    pub async fn list(credentials: Credentials, has_achievements: bool, filter: GameListFilter) -> Vec<Self> {
+    pub async fn list(credentials: Credentials, has_achievements: bool, filter: GameListFilter) -> GameListResult {
         let owned_games = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
         let completed_games_cache: HashMap<i32, GameCompletion> = game_completion_cache::get_game_completion()
             .expect("Failed to load completed games")
@@ -82,21 +89,25 @@ impl GameListDisplay {
             .collect();
         list.sort_by_key(|a| Reverse(a.1));
 
-        list
-            .par_iter()
-            .map(|g| {
-                GameListDisplay{
-                    game_name: g.0.name.clone(),
-                    progress_display: g.1.to_string(),
-                    id: g.0.appid,
-                }
-            })
-            .collect()
+        GameListResult {
+            filter,
+            has_achievements,
+            list: list
+                .par_iter()
+                .map(|g| {
+                    GameListDisplay{
+                        game_name: g.0.name.clone(),
+                        progress_display: g.1.to_string(),
+                        id: g.0.appid,
+                    }
+                })
+                .collect()
+        }
     }
 }
 
 impl App {
-    pub fn game_list_view(&self) -> Element<'_, Message> {
+    pub fn game_list_view(&self, filter: GameListFilter) -> Element<'_, Message> {
         let filter_games = {
             row![
                 button("Targets").on_press(Message::GamesView(GameListFilter::Targets)),
@@ -111,14 +122,17 @@ impl App {
         let achievement_filter = checkbox(self.games_have_achievements_filter)
             .label("Has Achievements")
             .on_toggle(Message::AchievementCheckboxToggled);
-        let game_count = if let Some(games) = &self.games {
+        // Check if game list for selection ahs loaded
+        let game_list = self.games.get(&(filter, self.games_have_achievements_filter));
+        
+        let game_count = if let Some(games) = game_list {
             text("Number of games:".to_owned() + games.len().to_string().as_str())
         }
         else {
             text("Loading...")
         };
         let main_view = {
-            if let Some (games) = &self.games {
+            if let Some (games) = game_list {
                 let bold = |header| {
                     text(header).font(Font {
                         weight: font::Weight::Bold,

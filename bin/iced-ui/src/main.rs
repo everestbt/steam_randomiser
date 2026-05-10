@@ -7,7 +7,11 @@ use iced::widget::{
     center_x, column, row, button, image::Handle, text
 };
 use iced::{Element, Theme, Task};
-use games_list_view::{GameListDisplay, GameListFilter};
+use games_list_view::{
+    GameListDisplay, 
+    GameListFilter, 
+    GameListResult
+};
 use goals_view::Goal;
 use api::game_fetch::{self, Game};
 use simple_error::SimpleError;
@@ -39,7 +43,7 @@ enum Message {
     GoalsView,
     GoalsLoaded(Vec<Goal>),
     AchievementCheckboxToggled(bool),
-    GamesLoaded(Vec<GameListDisplay>),
+    GamesLoaded(GameListResult),
     GenerateRandomAchievement(i32), // app_id
     RandomAchievementGenerated(Result<(Game, Option<GameAchievement>), SimpleError>), 
     SetAsGameTarget(i32), // app_id
@@ -71,7 +75,7 @@ struct App {
     // SETTINGS
     view: View,
     // DISPLAY
-    games: Option<Vec<GameListDisplay>>,
+    games: HashMap<(GameListFilter, bool), Vec<GameListDisplay>>, // filter, has_achievement -> game_list
     games_have_achievements_filter: bool,
     goals: Option<Vec<Goal>>,
     game_views: HashMap<i32, GameDisplay>,
@@ -88,7 +92,7 @@ impl App {
         let data = load_data();
         Self {
             view: View::default(),
-            games: None,
+            games: HashMap::new(),
             games_have_achievements_filter: true,
             goals: None,
             game_views: HashMap::new(),
@@ -104,11 +108,10 @@ impl App {
         match message {
             Message::GamesView(filter) => {
                 self.view = View::Games(filter.clone());
-                self.games = None;
                 Task::perform(GameListDisplay::list(self.credentials.clone(), self.games_have_achievements_filter, filter.clone()), Message::GamesLoaded)
             },
-            Message::GamesLoaded(loaded) => {
-                self.games = Some(loaded);
+            Message::GamesLoaded(list_result) => {
+                self.games.insert((list_result.filter, list_result.has_achievements), list_result.list);
                 Task::none()
             },
             Message::GameView(id) => {
@@ -156,7 +159,6 @@ impl App {
                 self.games_have_achievements_filter = is_checked;
                 match &self.view {
                     View::Games(filter) => {
-                        self.games = None;
                         Task::perform(GameListDisplay::list(self.credentials.clone(), self.games_have_achievements_filter, filter.clone()), Message::GamesLoaded)
                     },
                     _ => Task::none()
@@ -238,7 +240,7 @@ impl App {
         let main_view: Element<'_, Message> = match &self.view {
             View::None => column![center_x(text("Welcome to G.A.B.E"))].into(),
             View::Goals => self.goal_view(),
-            View::Games(_) => self.game_list_view(),
+            View::Games(filter) => self.game_list_view(filter.clone()),
             View::Game(_) => self.game_view(),
             View::TrophyCase => self.trophy_case_view(),
         };
