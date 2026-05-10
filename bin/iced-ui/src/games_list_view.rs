@@ -60,13 +60,13 @@ impl GameListDisplay {
                         target_set.contains(&g.appid)
                     }
                     GameListFilter::InProgress => {
-                        completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0) < 100
+                        completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0) < 100 || target_set.contains(&g.appid)
                     },
                     GameListFilter::Completed => {
-                        completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0) == 100
+                        completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0) == 100 && !target_set.contains(&g.appid)
                     },
                     GameListFilter::Perfected => {
-                        completed_games_cache.get(&g.appid).map(|c| c.perfect).unwrap_or(false)
+                        completed_games_cache.get(&g.appid).map(|c| c.perfect).unwrap_or(false) && !target_set.contains(&g.appid)
                     }
                 }
             })

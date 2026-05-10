@@ -7,8 +7,11 @@ use iced::{Element};
 use iced::widget::{
     column, row, text, image, image::Handle, grid, scrollable, center_x, button
 };
-use db::game_completion_cache;
-use std::collections::HashMap;
+use db::{
+    game_completion_cache,
+    game_target_store,
+};
+use std::collections::{HashMap, HashSet};
 use rayon::prelude::*;
 
 impl App {
@@ -50,13 +53,18 @@ pub enum TrophyCaseFilter {
 }
 
 pub async fn load_trophies(view: TrophyCaseFilter) -> Vec<i32> {
+    let target_set: HashSet<i32> = game_target_store::get_game_targets().expect("Failed to load targets")
+        .iter()
+        .filter(|t| !t.complete)
+        .map(|t| t.app_id)
+        .collect();
     game_completion_cache::get_game_completion()
         .expect("Failed to load cache")
         .iter()
         .filter(|c| {
             match view {
-                TrophyCaseFilter::Completed => c.complete == 100,
-                TrophyCaseFilter::Perfected => c.perfect
+                TrophyCaseFilter::Completed => c.complete == 100 && !target_set.contains(&c.app_id),
+                TrophyCaseFilter::Perfected => c.perfect && !target_set.contains(&c.app_id),
             }
         }) 
         .map(|c| c.app_id)
