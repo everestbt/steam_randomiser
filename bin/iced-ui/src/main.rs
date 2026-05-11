@@ -52,7 +52,8 @@ enum Message {
     ExcludeAchievement(i32, String), // app_id, achievement_name
     TrophyCaseView(TrophyCaseFilter),
     TrophiesLoaded(Vec<i32>), // app_id's
-    GameCoversLoaded(HashMap<i32, Handle>) // app_id -> Game Cover
+    GameCoversLoaded(HashMap<i32, Handle>), // app_id -> Game Cover
+    CachesSynced(Result<(), SimpleError>),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -163,7 +164,6 @@ impl App {
                     },
                     _ => Task::none()
                 }
-                
             },
             Message::GenerateRandomAchievement(ref app_id) => Task::perform(game_view::generate_random_achievement(self.credentials.clone(), app_id.clone()), Message::RandomAchievementGenerated),
             Message::RandomAchievementGenerated(random_achievement) => {
@@ -184,14 +184,14 @@ impl App {
                 if let Some(view) = self.game_views.get_mut(&app_id) {
                     view.target = true;
                 }
-                Task::none()
+                Task::perform(sync_caches(self.credentials.clone()), Message::CachesSynced)
             },
             Message::SetGameAsComplete(app_id) => {
                 game_target_store::save_game_target(&app_id, &true).expect("Failed to save target");
                 if let Some(view) = self.game_views.get_mut(&app_id) {
                     view.complete = true;
                 }
-                Task::none()
+                Task::perform(sync_caches(self.credentials.clone()), Message::CachesSynced)
             },
             Message::RandomGame => {
                 let random_game_id = self.owned_games.values().nth(rand::random_range(..self.owned_games.values().len())).unwrap().appid;
@@ -200,7 +200,11 @@ impl App {
             },
             Message::ExcludeAchievement(app_id, achievement_name) => {
                 excluded_achievement_store::save_excluded_achievement(&achievement_name, &app_id).expect("Failed to exclude achievement");
-                Task::perform(game_view::load_game_display(self.credentials.clone(), app_id.clone(), self.owned_games.get(&app_id).expect("Does not exist").name.clone()), Message::GameLoaded)
+                let tasks = vec![
+                    Task::perform(game_view::load_game_display(self.credentials.clone(), app_id.clone(), self.owned_games.get(&app_id).expect("Does not exist").name.clone()), Message::GameLoaded),
+                    Task::perform(sync_caches(self.credentials.clone()), Message::CachesSynced)
+                ];
+                Task::batch(tasks)
             },
             Message::TrophyCaseView(filter) => {
                 self.view = View::TrophyCase;
@@ -224,6 +228,17 @@ impl App {
                     self.game_covers.insert(cover.0, cover.1);
                 }
                 Task::none()
+            },
+            Message::CachesSynced(result) => {
+                if result.is_err() {
+                    panic!("Caches failed to sync")
+                }
+                let mut tasks: Vec<Task<Message>> = vec![];
+                for k in self.games.keys() {
+                    tasks.push(Task::perform(GameListDisplay::list(self.credentials.clone(), k.1.clone(), k.0.clone()), Message::GamesLoaded));
+                }
+                self.trophies = None;
+                Task::batch(tasks)
             }
         }
     }
@@ -271,4 +286,11 @@ fn load_data() -> DataLoad {
         credentials: Credentials { key, steam_id },
         owned_games,
     }
+}
+
+async fn sync_caches(credentials: Credentials) -> Result<(), SimpleError> {
+    goals::get_and_sync_completed_achievements(&credentials.key, &credentials.steam_id).await;
+    let owned_games = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
+    goals::refresh_game_completion_cache(&credentials.key, &credentials.steam_id, &owned_games).await;
+    Ok(())
 }
