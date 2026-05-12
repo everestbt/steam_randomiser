@@ -17,6 +17,7 @@ use api::game_fetch::{self, Game};
 use simple_error::SimpleError;
 use std::env;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 use db::{
     steam_id_store,
     game_target_store,
@@ -27,7 +28,21 @@ use game_view::{GameDisplay, GameGoalDisplay};
 use api::achievement_fetch::GameAchievement;
 use trophy_case_view::TrophyCaseFilter;
 
+// We only need to load this once, do it statically so it can be shared between all threads
+pub static OWNED_GAMES: LazyLock<HashMap<i32, Game>> = LazyLock::new(|| {
+        let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
+        let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
+        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        // Sync and update all data
+        runtime.block_on(goals::get_and_sync_completed_achievements(&key, &steam_id));
+        let owned_games_vec = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
+        owned_games_vec.iter().map(|g| (g.appid.clone(), g.clone())).collect::<HashMap<_, _>>()
+    }
+);
+
 pub fn main() -> iced::Result {
+    // Do this call to instantiate the owned games list before the program starts
+    OWNED_GAMES.len();
     color_eyre::install().expect("Failed to install color eyre");
     iced::application(App::new, App::update, App::view)
         .theme(Theme::CatppuccinMocha)
@@ -85,12 +100,12 @@ struct App {
     game_covers: HashMap<i32, Handle>, // app_id -> image
     // DATA
     credentials: Credentials,
-    owned_games: HashMap<i32, Game>, //app_id -> Game
 }
 
 impl App {
     fn new() -> Self {
-        let data = load_data();
+        let credentials = load_credentials();
+        tokio::runtime::Runtime::new().expect("Unable to create a runtime").block_on(sync_caches(credentials.clone())).expect("Failed to sync caches");
         Self {
             view: View::default(),
             games: HashMap::new(),
@@ -100,8 +115,7 @@ impl App {
             goal_icons: HashMap::new(),
             game_covers: HashMap::new(),
             trophies: None,
-            credentials: data.credentials,
-            owned_games: data.owned_games,
+            credentials,
         }
     }
 
@@ -109,7 +123,7 @@ impl App {
         match message {
             Message::GamesView(filter) => {
                 self.view = View::Games(filter.clone());
-                Task::perform(GameListDisplay::list(self.credentials.clone(), self.games_have_achievements_filter, filter.clone()), Message::GamesLoaded)
+                Task::perform(GameListDisplay::list(self.games_have_achievements_filter, filter.clone()), Message::GamesLoaded)
             },
             Message::GamesLoaded(list_result) => {
                 self.games.insert((list_result.filter, list_result.has_achievements), list_result.list);
@@ -117,7 +131,7 @@ impl App {
             },
             Message::GameView(id) => {
                 self.view = View::Game(id);
-                Task::perform(game_view::load_game_display(self.credentials.clone(), id.clone(), self.owned_games.get(&id).expect("Does not exist").name.clone()), Message::GameLoaded)
+                Task::perform(game_view::load_game_display(self.credentials.clone(), id.clone(), OWNED_GAMES.get(&id).expect("Does not exist").name.clone()), Message::GameLoaded)
             },
             Message::GameLoaded(display) => {
                 let filtered_icons: Vec<GameGoalDisplay> = display.goals.iter()
@@ -160,7 +174,7 @@ impl App {
                 self.games_have_achievements_filter = is_checked;
                 match &self.view {
                     View::Games(filter) => {
-                        Task::perform(GameListDisplay::list(self.credentials.clone(), self.games_have_achievements_filter, filter.clone()), Message::GamesLoaded)
+                        Task::perform(GameListDisplay::list(self.games_have_achievements_filter, filter.clone()), Message::GamesLoaded)
                     },
                     _ => Task::none()
                 }
@@ -194,14 +208,14 @@ impl App {
                 Task::perform(sync_caches(self.credentials.clone()), Message::CachesSynced)
             },
             Message::RandomGame => {
-                let random_game_id = self.owned_games.values().nth(rand::random_range(..self.owned_games.values().len())).unwrap().appid;
+                let random_game_id = OWNED_GAMES.values().nth(rand::random_range(..OWNED_GAMES.values().len())).unwrap().appid;
                 self.view = View::Game(random_game_id).clone();
-                Task::perform(game_view::load_game_display(self.credentials.clone(), random_game_id.clone(), self.owned_games.get(&random_game_id).expect("Does not exist").name.clone()), Message::GameLoaded)
+                Task::perform(game_view::load_game_display(self.credentials.clone(), random_game_id.clone(), OWNED_GAMES.get(&random_game_id).expect("Does not exist").name.clone()), Message::GameLoaded)
             },
             Message::ExcludeAchievement(app_id, achievement_name) => {
                 excluded_achievement_store::save_excluded_achievement(&achievement_name, &app_id).expect("Failed to exclude achievement");
                 let tasks = vec![
-                    Task::perform(game_view::load_game_display(self.credentials.clone(), app_id.clone(), self.owned_games.get(&app_id).expect("Does not exist").name.clone()), Message::GameLoaded),
+                    Task::perform(game_view::load_game_display(self.credentials.clone(), app_id.clone(), OWNED_GAMES.get(&app_id).expect("Does not exist").name.clone()), Message::GameLoaded),
                     Task::perform(sync_caches(self.credentials.clone()), Message::CachesSynced)
                 ];
                 Task::batch(tasks)
@@ -235,7 +249,7 @@ impl App {
                 }
                 let mut tasks: Vec<Task<Message>> = vec![];
                 for k in self.games.keys() {
-                    tasks.push(Task::perform(GameListDisplay::list(self.credentials.clone(), k.1.clone(), k.0.clone()), Message::GamesLoaded));
+                    tasks.push(Task::perform(GameListDisplay::list(k.1.clone(), k.0.clone()), Message::GamesLoaded));
                 }
                 self.trophies = None;
                 Task::batch(tasks)
@@ -268,29 +282,16 @@ impl App {
     }
 }
 
-struct DataLoad {
-    credentials: Credentials,
-    owned_games: HashMap<i32, Game>,
-}
-
-fn load_data() -> DataLoad {
-    let key = env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key");
-    let steam_id = steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first");
-    let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-    // Sync and update all data
-    runtime.block_on(goals::get_and_sync_completed_achievements(&key, &steam_id));
-    let owned_games_vec = runtime.block_on(game_fetch::get_owned_games(&key, &steam_id));
-    runtime.block_on(goals::refresh_game_completion_cache(&key, &steam_id, &owned_games_vec));
-    let owned_games: HashMap<i32, Game> = owned_games_vec.iter().map(|g| (g.appid.clone(), g.clone())).collect::<HashMap<_, _>>();
-    DataLoad { 
-        credentials: Credentials { key, steam_id },
-        owned_games,
+fn load_credentials() -> Credentials {
+    Credentials { 
+        key: env::var("STEAM_API_KEY").expect("You need to set the environment variable STEAM_API_KEY with your API key"),
+        steam_id: steam_id_store::get_id().expect("Failed to load steam-id, use the cli and supply a --id first")
     }
 }
 
 async fn sync_caches(credentials: Credentials) -> Result<(), SimpleError> {
     goals::get_and_sync_completed_achievements(&credentials.key, &credentials.steam_id).await;
-    let owned_games = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
+    let owned_games = OWNED_GAMES.values().map(|g| g.clone()).collect();
     goals::refresh_game_completion_cache(&credentials.key, &credentials.steam_id, &owned_games).await;
     Ok(())
 }

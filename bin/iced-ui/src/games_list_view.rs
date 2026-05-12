@@ -1,6 +1,6 @@
 use super::App;
 
-use crate::{Credentials, Message};
+use crate::{Message, OWNED_GAMES};
 
 use iced::font;
 use iced::widget::{
@@ -13,7 +13,6 @@ use db::{
     game_target_store,
 };
 use api::{
-    game_fetch,
     game_fetch::Game,
 };
 use std::collections::{HashMap, HashSet};
@@ -46,8 +45,7 @@ pub struct GameListResult {
 }
 
 impl GameListDisplay {
-    pub async fn list(credentials: Credentials, has_achievements: bool, filter: GameListFilter) -> GameListResult {
-        let owned_games = game_fetch::get_owned_games(&credentials.key, &credentials.steam_id).await;
+    pub async fn list(has_achievements: bool, filter: GameListFilter) -> GameListResult {
         let completed_games_cache: HashMap<i32, GameCompletion> = game_completion_cache::get_game_completion()
             .expect("Failed to load completed games")
             .iter()
@@ -59,7 +57,8 @@ impl GameListDisplay {
             .map(|t| t.app_id)
             .collect();
 
-        let mut list: Vec<(Game, i8)> = owned_games
+        let owned_games_vec: Vec<&Game> = OWNED_GAMES.values().collect();
+        let mut list: Vec<(&&Game, i8)> = owned_games_vec
             .par_iter()
             .filter(|g| {
                 match filter {
@@ -85,7 +84,7 @@ impl GameListDisplay {
                     true
                 }
             })
-            .map(|g| (g.clone(), completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0))) // Game, Progress
+            .map(|g| (g, completed_games_cache.get(&g.appid).map(|c| c.complete).unwrap_or(0))) // Game, Progress
             .collect();
         list.sort_by_key(|a| Reverse(a.1));
 

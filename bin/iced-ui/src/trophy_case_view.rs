@@ -1,6 +1,6 @@
 use super::App;
 
-use crate::Message;
+use crate::{Message, OWNED_GAMES};
 
 use api::game_cover_fetch;
 use iced::{Element};
@@ -27,7 +27,7 @@ impl App {
                 if let Some(i) =  self.game_covers.get(app_id) {
                     image(i).width(150).height(225).into()
                 }
-                else if let Some(game) = self.owned_games.get(app_id) {
+                else if let Some(game) = OWNED_GAMES.get(app_id) {
                     text(game.name.clone()).into()
                 }
                 else {
