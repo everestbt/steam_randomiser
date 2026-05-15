@@ -47,7 +47,7 @@ struct GameStats {
 #[derive(Debug, Serialize, Deserialize)]
 struct AvailableGameStats {
     #[serde(rename = "availableGameStats")]
-    available_game_stats: GameStats,
+    available_game_stats: Option<GameStats>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -113,5 +113,5 @@ pub async fn get_game_achievements(key : &str, app_id : &i32) -> Vec<GameAchieve
         panic!()
     }
 
-    response.unwrap().game.available_game_stats.achievements
+    response.unwrap().game.available_game_stats.map(|s| s.achievements).unwrap_or(vec![])
 }
