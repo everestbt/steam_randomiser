@@ -118,15 +118,15 @@ pub async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &
             .collect();
         // Display if it is complete and save the current result
         if unachieved.is_empty() {
-            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, true, true)
-                .expect("Failed to save game completion");
-        }
-        else if let Some(target) = game_target_store::get_game_target(&game.appid).expect("Failed to load game target") {
-            if target.complete {
-                game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, false, false).expect("Failed to save game completion");
-            }
+            game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, true, true).expect("Failed to save game completion");
         }
         else {
+            if let Some(target) = game_target_store::get_game_target(&game.appid).expect("Failed to load game target") {
+                if target.complete {
+                    game_completion_cache::save_game_completion(&game.appid, 100, game.last_played, true, false).expect("Failed to save game completion");
+                    continue;
+                }
+            }
             // Check for any excluded achievements
             let excluded_achievements: Vec<String> = excluded_achievement_store::get_excluded_achievements_for_app(&game.appid)
                 .expect("Failed to load excluded achievements")
@@ -145,6 +145,7 @@ pub async fn refresh_game_completion_cache(key : &str, steam_id : &str, games: &
                 game_completion_cache::save_game_completion(&game.appid, progress, game.last_played, true, false)
                     .expect("Failed to save game completion");
             }
+            
         }
     }
 }   
