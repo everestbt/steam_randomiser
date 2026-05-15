@@ -74,7 +74,7 @@ pub async fn load_trophies(view: TrophyCaseFilter) -> Vec<i32> {
 pub async fn load_game_covers(app_ids: Vec<i32>) -> HashMap<i32, Handle> {
     app_ids.par_iter()
         .map(|g| {
-            (g.clone(), game_cover_fetch::get_game_cover_blocking(g).map(|b| Handle::from_bytes(b)))
+            (*g, game_cover_fetch::get_game_cover_blocking(g).map(Handle::from_bytes))
         })
         .filter(|t| t.1.is_some())
         .map(|t| (t.0, t.1.expect("All none will be filtered out")))

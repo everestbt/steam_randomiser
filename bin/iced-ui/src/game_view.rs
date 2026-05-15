@@ -207,7 +207,7 @@ pub async fn load_game_display(credentials: Credentials, app_id: i32, game_name:
     let target = game_target_store::get_game_target(&app_id).expect("Failed to load target");
     GameDisplay { 
         app_id,
-        game_name: game_name,
+        game_name,
         goals,
         target: target.is_some(),
         complete: target.map(|t| t.complete).unwrap_or(false),
