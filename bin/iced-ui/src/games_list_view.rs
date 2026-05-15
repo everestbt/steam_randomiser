@@ -4,7 +4,7 @@ use crate::{Message, OWNED_GAMES};
 
 use iced::font;
 use iced::widget::{
-    center_x, center_y, column, row, table, text, scrollable, button, checkbox,
+    center_x, center_y, column, row, table, text, scrollable, button, checkbox, text_input
 };
 use iced::{Element, Font};
 use db::{
@@ -45,7 +45,7 @@ pub struct GameListResult {
 }
 
 impl GameListDisplay {
-    pub async fn list(has_achievements: bool, filter: GameListFilter) -> GameListResult {
+    pub async fn list(has_achievements: bool, filter: GameListFilter, title_search: Option<String>) -> GameListResult {
         let completed_games_cache: HashMap<i32, GameCompletion> = game_completion_cache::get_game_completion()
             .expect("Failed to load completed games")
             .iter()
@@ -60,6 +60,14 @@ impl GameListDisplay {
         let owned_games_vec: Vec<&Game> = OWNED_GAMES.values().collect();
         let mut list: Vec<(&&Game, i8)> = owned_games_vec
             .par_iter()
+            .filter(|g| {
+                if let Some(search) = &title_search {
+                    g.name.to_uppercase().contains(search.to_uppercase().as_str())
+                }
+                else {
+                    true
+                }
+            })
             .filter(|g| {
                 match filter {
                     GameListFilter::Targets => {
@@ -130,6 +138,11 @@ impl App {
         else {
             text("Loading...")
         };
+        
+        let game_search: Element<'_, Message> = text_input("Type something here...", &self.game_list_search)
+                .on_input(Message::GameListSearch)
+                .into();
+        
         let main_view = {
             if let Some (games) = game_list {
                 let bold = |header| {
@@ -143,11 +156,13 @@ impl App {
                     table::column(bold("Progress"), |game: &GameListDisplay| text(game.progress_display.as_str())),
                 ];
 
-                column![table(columns, games)
-                    .padding_x(10)
-                    .padding_y(5)
-                    .separator_x(1)
-                    .separator_y(1)]
+                column![
+                    table(columns, games)
+                        .padding_x(10)
+                        .padding_y(5)
+                        .separator_x(1)
+                        .separator_y(1)
+                ]
             }
             else {
                 column![text("Loading game list...")]
@@ -158,6 +173,7 @@ impl App {
             center_x(achievement_filter).padding(5),
             center_x(random_game).padding(5),
             center_x(game_count).padding(5),
+            center_x(game_search).padding(5),
             center_y(scrollable(center_x(main_view)).spacing(10)).padding(10),
         ].into()
     }

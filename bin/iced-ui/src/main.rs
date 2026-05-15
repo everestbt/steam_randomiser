@@ -4,7 +4,7 @@ mod game_view;
 mod trophy_case_view;
 
 use iced::widget::{
-    center_x, column, row, button, image::Handle, text
+    center_x, column, row, button, image::Handle, text, 
 };
 use iced::{Element, Theme, Task};
 use games_list_view::{
@@ -69,6 +69,7 @@ enum Message {
     TrophiesLoaded(Vec<i32>), // app_id's
     GameCoversLoaded(HashMap<i32, Handle>), // app_id -> Game Cover
     CachesSynced(Result<(), SimpleError>),
+    GameListSearch(String),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -93,6 +94,7 @@ struct App {
     // DISPLAY
     games: HashMap<(GameListFilter, bool), Vec<GameListDisplay>>, // filter, has_achievement -> game_list
     games_have_achievements_filter: bool,
+    game_list_search: String,
     goals: Option<Vec<Goal>>,
     game_views: HashMap<i32, GameDisplay>,
     goal_icons: HashMap<(i32, String), Handle>, // app_id, achievement_name -> image
@@ -110,6 +112,7 @@ impl App {
             view: View::default(),
             games: HashMap::new(),
             games_have_achievements_filter: true,
+            game_list_search: "".to_string(),
             goals: None,
             game_views: HashMap::new(),
             goal_icons: HashMap::new(),
@@ -123,7 +126,7 @@ impl App {
         match message {
             Message::GamesView(filter) => {
                 self.view = View::Games(filter.clone());
-                Task::perform(GameListDisplay::list(self.games_have_achievements_filter, filter.clone()), Message::GamesLoaded)
+                Task::perform(GameListDisplay::list(self.games_have_achievements_filter, filter.clone(), Some(self.game_list_search.clone())), Message::GamesLoaded)
             },
             Message::GamesLoaded(list_result) => {
                 self.games.insert((list_result.filter, list_result.has_achievements), list_result.list);
@@ -174,7 +177,7 @@ impl App {
                 self.games_have_achievements_filter = is_checked;
                 match &self.view {
                     View::Games(filter) => {
-                        Task::perform(GameListDisplay::list(self.games_have_achievements_filter, filter.clone()), Message::GamesLoaded)
+                        Task::perform(GameListDisplay::list(self.games_have_achievements_filter, filter.clone(), Some(self.game_list_search.clone())), Message::GamesLoaded)
                     },
                     _ => Task::none()
                 }
@@ -249,11 +252,21 @@ impl App {
                 }
                 let mut tasks: Vec<Task<Message>> = vec![];
                 for k in self.games.keys() {
-                    tasks.push(Task::perform(GameListDisplay::list(k.1.clone(), k.0.clone()), Message::GamesLoaded));
+                    tasks.push(Task::perform(GameListDisplay::list(k.1.clone(), k.0.clone(), Some(self.game_list_search.clone())), Message::GamesLoaded));
                 }
                 self.trophies = None;
                 Task::batch(tasks)
-            }
+            },
+            Message::GameListSearch(search) => {
+                self.game_list_search = search.clone();
+                let task = match &self.view {
+                    View::Games(filter) => {
+                        Task::perform(GameListDisplay::list(self.games_have_achievements_filter.clone(), filter.clone(), Some(self.game_list_search.clone())), Message::GamesLoaded)
+                    },
+                    _ => Task::none()
+                };
+                task
+            },
         }
     }
 
