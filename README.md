@@ -1,25 +1,28 @@
-# Steam Randomiser
+# Game Achievement Binder Engine (G.A.B.E)
 
-This is CLI tool to select a game from your steam library.
+GABE is a tool for tracking your games for completion and your progress through them.
 
 To use you will need to get a Steam API key, [instructions can be found here](https://steamcommunity.com/dev).
 You will also need your steam id which can be found following the [instructions here](https://help.steampowered.com/en/faqs/view/2816-BE67-5B69-0FEC).
 
-The program is written in rust so you will need Rust installed to use it. There is no executable shared anywhere. 
+The program is written in rust so you will need [Rust](https://rust-lang.org/tools/install/) installed to use it. There is no executable shared anywhere. 
 
-You will need cargo to install it:
+You will need cargo to install it, my suggestion is to clone the repo and then install the parts you want:
+
+CLI:
 ```bash
 cargo install --path ./bin/cli
-steam-rand --key <KEY> --steam-id <STEAM-ID> --random-achievement --game-name <GAME-NAME>
+STEAM_API_KEY=<KEY> steam-rand --help
 ```
 
-Replacing `<KEY> <STEAM-ID>` with your own credentials. It will save your credentials after the first use, if you want to replace them just provide new details. Note this may cause errors in the goals as it is only designed for one user.
-
-For all commands use:
-
+UI:
 ```bash
-steam-rand --help
+cargo install --path ./bin/iced-ui
+STEAM_API_KEY=<KEY> steam-rand-iced-ui
 ```
+
+Replacing `<KEY> <STEAM-ID>` with your own credentials. 
+It will save your steam id after first use, you can replace it by re-running the CLI with a new steam id. Note this may cause errors in the goals as it is only designed for one user, so safer to wipe the database and start again.
 
 The Steam Web API can be flaky, there is no automatic retry, just run it again.
 
